@@ -11,7 +11,9 @@
 
 void print_nmreq(struct nmreq *req);
 void print_netmap_if(struct netmap_if *nif);
-void print_buf(char* buf, uint16_t len);
+void print_ring(struct netmap_ring *ring, uint32_t ridx);
+void print_buf(char *buf, uint16_t len);
+void print_buf2(char *buf, uint16_t len); 
 
 
 int main() {
@@ -20,6 +22,8 @@ int main() {
 	struct nmreq req;
 	struct pollfd fds;
 	int fd, retval, i;
+	uint32_t ridx; /* ring index */
+	uint32_t avail; /* nr packets to read */
 	char *buf;
 	void *mem;
 
@@ -51,20 +55,37 @@ int main() {
 	nifp = NETMAP_IF(mem, req.nr_offset);
 	print_netmap_if(nifp);
 
-	ring = NETMAP_RXRING(nifp, 0);
-
 	for(;;) {
-		retval = poll(&fds, 1, -1);
+		retval = poll(&fds, 1, INFTIM);
 		if (retval < 0) {
 			perror("poll failed");
+		} else {
+			char *event = "";
+			if (fds.revents & POLLIN)
+				event = "POLLIN";
+			if (fds.revents & POLLRDNORM)
+				event = "POLLRDNORM";
+			if (fds.revents & POLLRDBAND)
+				event = "POLLRDBAND";
+			printf("poll revents: %s (%d)\n", event, retval);		
 		}
-			
-		for(; ring->avail > 0; ring->avail--) {
-			i = ring->cur;
-			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);	
-			print_buf(buf, ring->slot[i].len);
-			ring->cur = NETMAP_RING_NEXT(ring, i);		
+
+		for(ridx=0; ridx <= nifp->ni_rx_rings; ridx++) {
+			ring = NETMAP_RXRING(nifp, ridx);
+	 		for(avail = ring->avail; avail > 0; avail--) {
+	 			print_ring(ring, ridx);
+	 			i = ring->cur;
+	 			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);	
+	 			print_buf2(buf, ring->slot[i].len);
+	 			ring->cur = NETMAP_RING_NEXT(ring, i);		
+	 		}
 		}
+		/*
+		retval = ioctl(fd, NIOCRXSYNC, NULL); // sync the rx queues 
+		if (retval < 0) {
+			perror("NIOCRXSYNC failed");
+		}
+		*/
 	}
 
 	return 0;
@@ -95,7 +116,18 @@ void print_netmap_if(struct netmap_if *nif) {
 	printf("ring_ofs: %zd\n", nif->ring_ofs[0]);
 }
 
-void print_buf(char* buf, uint16_t len) {
+void print_ring(struct netmap_ring *ring, uint32_t ridx) {
+	printf("ring: %u\n", ridx);
+	printf("buf_ofs: %zd\n", ring->buf_ofs);
+	printf("num_slots: %u\n", ring->num_slots);
+	printf("avail: %u\n", ring->avail);
+	printf("cur: %u\n", ring->cur);
+	printf("reserved: %u\n", ring->reserved);
+	printf("flags: %hu\n", ring->flags);
+	/* printf("ts: unknown\n"); */
+}
+
+void print_buf(char *buf, uint16_t len) {
 	uint16_t i;
 	printf("*****buf*****\n");
 
@@ -107,4 +139,14 @@ void print_buf(char* buf, uint16_t len) {
 	}
 	printf("\n");
 
+}
+
+void print_buf2(char *buf, uint16_t len) {
+	uint16_t i;
+	printf("*****buf(%hu)*****\n", len);
+	if ( len > 53)
+		len = 53;
+	for(i = 0; i < len; i++)
+		printf("%.2x ", buf[i] & 0xFF);
+	printf("\n");	
 }
