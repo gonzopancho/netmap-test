@@ -8,10 +8,13 @@
 #include <stdio.h> // fprintf, perror
 #include <string.h> // strcpy
 #include <poll.h>
+#include <unistd.h> // sleep, close
+
 
 void print_nmreq(struct nmreq *req);
 void print_netmap_if(struct netmap_if *nif);
 void print_ring(struct netmap_ring *ring, uint32_t ridx);
+void print_ring2(struct netmap_ring *ring, uint32_t ridx);
 void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
 
@@ -20,34 +23,43 @@ int main() {
 	struct netmap_if *nifp;
 	struct netmap_ring *ring;
 	struct nmreq req;
-	struct pollfd fds;
+	struct pollfd pfd;
 	int fd, retval, i;
 	uint32_t ridx; /* ring index */
 	uint32_t avail; /* nr packets to read */
 	char *buf;
 	void *mem;
+	char *event;
 
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "Error opening /dev/netmap: %d\n", fd);
+		close(fd);
 		return 1;
 	}
 	
-	fds.fd = fd;
-	fds.events = POLLIN;
+	pfd.fd = fd;
+	pfd.events = (POLLIN);
 
 	bzero(&req, sizeof(req));
 	strcpy(req.nr_name, "em0");
 	req.nr_version = NETMAP_API;
-	retval = ioctl(fd, NIOCREGIF, &req); /* register the interface */
+	req.nr_ringid = NETMAP_NO_TX_POLL;
+
+	/* register the NIC for netmap mode */
+	retval = ioctl(fd, NIOCREGIF, &req);
 	if (retval < 0) {
 		perror("NIOCREGIF failed");
 	}
 
+	/* give the NIC some time to unregister from the host stack */
+	sleep(2);
+
 	printf("After registration\n");
 	print_nmreq(&req);
 
-	mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, 0, fd, 0);
+	mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+
 	if (mem == MAP_FAILED) {
 		perror("mmap failed");
 	}
@@ -55,37 +67,25 @@ int main() {
 	nifp = NETMAP_IF(mem, req.nr_offset);
 	print_netmap_if(nifp);
 
+	ring = NETMAP_RXRING(nifp, 0);
+	print_ring(ring, 0);
+
+	/* main poll loop */
 	for(;;) {
-		retval = poll(&fds, 1, INFTIM);
+		retval = poll(&pfd, 1, INFTIM);
 		if (retval < 0) {
 			perror("poll failed");
-		} else {
-			char *event = "";
-			if (fds.revents & POLLIN)
-				event = "POLLIN";
-			if (fds.revents & POLLRDNORM)
-				event = "POLLRDNORM";
-			if (fds.revents & POLLRDBAND)
-				event = "POLLRDBAND";
-			printf("poll revents: %s (%d)\n", event, retval);		
+			continue;
 		}
 
-		for(ridx=0; ridx <= nifp->ni_rx_rings; ridx++) {
-			ring = NETMAP_RXRING(nifp, ridx);
-	 		for(avail = ring->avail; avail > 0; avail--) {
-	 			print_ring(ring, ridx);
-	 			i = ring->cur;
-	 			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);	
-	 			print_buf2(buf, ring->slot[i].len);
-	 			ring->cur = NETMAP_RING_NEXT(ring, i);		
-	 		}
+		ring = NETMAP_RXRING(nifp, 0);
+		for (; ring->avail > 0; ring->avail--) {
+ 			print_ring2(ring, 0);
+ 			i = ring->cur;
+ 			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);	
+ 			print_buf2(buf, ring->slot[i].len);
+ 			ring->cur = NETMAP_RING_NEXT(ring, i);
 		}
-		/*
-		retval = ioctl(fd, NIOCRXSYNC, NULL); // sync the rx queues 
-		if (retval < 0) {
-			perror("NIOCRXSYNC failed");
-		}
-		*/
 	}
 
 	return 0;
@@ -125,6 +125,11 @@ void print_ring(struct netmap_ring *ring, uint32_t ridx) {
 	printf("reserved: %u\n", ring->reserved);
 	printf("flags: %hu\n", ring->flags);
 	/* printf("ts: unknown\n"); */
+}
+
+void print_ring2(struct netmap_ring *ring, uint32_t ridx) {
+	    printf("ring: %u avail: %u cur: %u res: %u\n", 
+				ridx, ring->avail, ring->cur, ring->reserved);
 }
 
 void print_buf(char *buf, uint16_t len) {
