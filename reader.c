@@ -24,12 +24,10 @@ int main() {
 	struct netmap_ring *ring;
 	struct nmreq req;
 	struct pollfd pfd;
-	int fd, retval, i;
-	uint32_t ridx; /* ring index */
-	uint32_t avail; /* nr packets to read */
+	int fd, retval;
+	uint32_t i;
 	char *buf;
 	void *mem;
-	char *event;
 
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
