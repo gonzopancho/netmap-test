@@ -15,4 +15,4 @@ struct pkt_arp {
 	struct in_addr tpa;
 } __attribute__((__packed__));
 
-int validate_arp(struct pkt_arp *arp);
+int arp_is_valid(struct pkt_arp *arp);
