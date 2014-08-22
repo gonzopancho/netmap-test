@@ -1,8 +1,7 @@
-#include <sys/types.h>	// u_char, required for <net/ethernet.h>
-#include <net/ethernet.h> //ether_header
-
+#include "ethernet.h"
 #include <netinet/in.h> // IP protos, required for <netinet/ip.h>
 #include <netinet/ip.h> // ip
+#include <arpa/inet.h>	// inet_aton_r
 
 /* assumes no VLAN tags or IP options */
 struct pkt_ip {
