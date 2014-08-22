@@ -12,6 +12,6 @@ LDFLAGS +=
 
 all: $(PROGS)
 
-reader: arp.o ip.o
-	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o $(LDFLAGS)
+reader: arp.o ip.o ethernet.o
+	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} ethernet.o $(LDFLAGS)
 

@@ -4,12 +4,15 @@
 #include <net/netmap_user.h>
 #include <sys/ioctl.h> 
 #include <sys/mman.h>
-#include <fcntl.h> // open
-#include <stdio.h> // fprintf, perror
-#include <string.h> // strcpy
+#include <fcntl.h> 	// open
+#include <stdio.h> 	// fprintf, perror
+#include <string.h> 	// strcpy
 #include <poll.h>
-#include <unistd.h> // sleep, close
-
+#include <unistd.h> 	// sleep, close
+#include <stdlib.h>		// exit
+#include <ifaddrs.h> 	// getifaddrs
+#include <net/if_dl.h>	// sockaddr_dl
+#include "ethernet.h"
 
 void print_nmreq(struct nmreq *req);
 void print_netmap_if(struct netmap_if *nif);
@@ -17,6 +20,7 @@ void print_ring(struct netmap_ring *ring, uint32_t ridx);
 void print_ring2(struct netmap_ring *ring, uint32_t ridx);
 void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
+int get_if_hwaddr(const char* if_name, struct ether_addr *addr);
 
 
 int main() {
@@ -28,6 +32,10 @@ int main() {
 	uint32_t i;
 	char *buf;
 	void *mem;
+	char *ifname = "em0";
+	struct ether_addr mac;
+	char macstr[18];
+	struct ethernet_pkt *etherpkt;
 
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
@@ -40,7 +48,7 @@ int main() {
 	pfd.events = (POLLIN);
 
 	bzero(&req, sizeof(req));
-	strcpy(req.nr_name, "em0");
+	strncpy(req.nr_name, ifname, sizeof(req.nr_name));
 	req.nr_version = NETMAP_API;
 	req.nr_ringid = NETMAP_NO_TX_POLL;
 
@@ -68,6 +76,12 @@ int main() {
 	ring = NETMAP_RXRING(nifp, 0);
 	print_ring(ring, 0);
 
+	if(!get_if_hwaddr(ifname, &mac)) {
+		fprintf(stderr, "get_if_hwaddr(%s) failed", ifname);
+		exit(1);
+	}
+	printf("MAC Address: %s\n", ether_ntoa_r(&mac, macstr));
+
 	/* main poll loop */
 	for(;;) {
 		retval = poll(&pfd, 1, INFTIM);
@@ -81,7 +95,10 @@ int main() {
  			print_ring2(ring, 0);
  			i = ring->cur;
  			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);	
- 			print_buf2(buf, ring->slot[i].len);
+			etherpkt = (struct ethernet_pkt *)(void *)buf;
+			if (!ethernet_is_valid(etherpkt, &mac))
+				printf("WARN: invalid ethernet packet\n");
+			print_buf2(buf, ring->slot[i].len);
  			ring->cur = NETMAP_RING_NEXT(ring, i);
 		}
 	}
@@ -153,3 +170,29 @@ void print_buf2(char *buf, uint16_t len) {
 		printf("%.2x ", buf[i] & 0xFF);
 	printf("\n");	
 }
+
+
+/* returns 0 on error, 1 on success */
+int get_if_hwaddr(const char* if_name, struct ether_addr *addr) {
+	struct ifaddrs *ifas, *ifa;
+	struct sockaddr_dl *sdl;
+
+	if (getifaddrs(&ifas) != 0) {
+		perror("getifaddrs failed");
+		return 0;
+	}
+
+	for(ifa = ifas; ifa; ifa = ifa->ifa_next) {
+		sdl = (struct sockaddr_dl *)(ifa->ifa_addr);
+		if (!sdl || sdl->sdl_family != AF_LINK)
+			continue;
+		if (memcmp(if_name, sdl->sdl_data, sdl->sdl_nlen) != 0)
+			continue;
+		memcpy(addr, LLADDR(sdl), sizeof(struct ether_addr));
+		break;
+	}
+	freeifaddrs(ifas);
+	return ifa ? 1 : 0;
+}
+
+
