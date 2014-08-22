@@ -1,3 +1,6 @@
+#ifndef _IP_
+#define _IP_
+
 #include "ethernet.h"
 #include <netinet/in.h> // IP protos, required for <netinet/ip.h>
 #include <netinet/ip.h> // ip
@@ -10,3 +13,5 @@ struct pkt_ip {
 } __attribute__((__packed__));
 
 int ip_is_valid(struct pkt_ip *ip);
+
+#endif

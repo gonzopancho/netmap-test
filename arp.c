@@ -1,13 +1,13 @@
 #include "arp.h"
 
-int arp_is_valid(struct pkt_arp *arp) {
+int arp_is_valid(struct arp_pkt *arp) {
 	/*  this is usually checked prior to calling this function anyway
-	if (arp->ether_h.ether_type != ETHERTYPE_ARP)
+	if (arp->ether_h.ether_type != ARP_ETHERTYPE)
 		return 0;
 	*/
 	if (arp->arp_h.ar_hrd != ARPHRD_ETHER)
 		return 0;
-	if (arp->arp_h.ar_pro != ETHERTYPE_IP)
+	if (arp->arp_h.ar_pro != IP4_ETHERTYPE)
 		return 0;
 	if (arp->arp_h.ar_hln != ETHER_ADDR_LEN)
 		return 0;
@@ -19,7 +19,7 @@ int arp_is_valid(struct pkt_arp *arp) {
 	return 1;		
 }
 
-void arp_print(struct pkt_arp *arp) {
+void arp_print(struct arp_pkt *arp) {
 	char sha[6*3];
 	char spa[4*4];
 	char tha[6*3];

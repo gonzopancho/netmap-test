@@ -2,7 +2,7 @@
 
 int ip_is_valid(struct pkt_ip *ip) {
 	/*  this is usually checked prior to calling this function anyway
-	if (ip->ether_h.ether_type != ETHERTYPE_IP)
+	if (ip->ether_h.ether_type != IP4_ETHERTYPE)
 		return 0;
 	*/
 	if (ip->ip_h.ip_hl != 5) // no options

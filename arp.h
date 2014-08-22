@@ -1,3 +1,6 @@
+#ifndef _ARP_
+#define _ARP_
+
 #include "ethernet.h"
 #include "ip.h"
 
@@ -8,7 +11,7 @@
 #include <stdlib.h> 	// free
 
 /* assumes ethernet hw type and IPv4 proto type*/
-struct pkt_arp {
+struct arp_pkt {
 	struct ether_header ether_h;
 	struct arphdr arp_h; 
 	struct ether_addr sha;
@@ -17,6 +20,7 @@ struct pkt_arp {
 	struct in_addr tpa;
 } __attribute__((__packed__));
 
-int arp_is_valid(struct pkt_arp *arp);
-void arp_print(struct pkt_arp *arp);
+int arp_is_valid(struct arp_pkt *arp);
+void arp_print(struct arp_pkt *arp);
 
+#endif
