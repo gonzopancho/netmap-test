@@ -1,6 +1,6 @@
 PROGS	=	reader
 
-CLEANFILES = $(PROGS) arp.o ip.o
+CLEANFILES = $(PROGS) arp.o ip.o ethernet.o
 NO_MAN=
 CFLAGS += -Werror -Wall -nostdinc -I/usr/include 
 CFLAGS += -Wextra
