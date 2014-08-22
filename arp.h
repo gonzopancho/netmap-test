@@ -1,13 +1,15 @@
-#include <sys/types.h>	// u_char, required for <net/ethernet.h>
-#include <net/ethernet.h> //ether_header
+#include "ethernet.h"
+#include "ip.h"
 
 #include <sys/socket.h> // sockaddr, required for <net/if_arp.h>
 #include <net/if_arp.h> 
-#include <netinet/in.h> // in_addr
+
+#include <stdio.h> 		// printf
+#include <stdlib.h> 	// free
 
 /* assumes ethernet hw type and IPv4 proto type*/
 struct pkt_arp {
-    struct ether_header ether_h;
+	struct ether_header ether_h;
 	struct arphdr arp_h; 
 	struct ether_addr sha;
 	struct in_addr spa;
@@ -16,3 +18,5 @@ struct pkt_arp {
 } __attribute__((__packed__));
 
 int arp_is_valid(struct pkt_arp *arp);
+void arp_print(struct pkt_arp *arp);
+
