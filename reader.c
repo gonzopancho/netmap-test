@@ -210,10 +210,9 @@ void dispatch(struct ethernet_pkt *pkt) {
 		case IP4_ETHERTYPE:
 			ip4 = (struct ip4_pkt *)(pkt->data);
 			if(ip4_is_valid(ip4))
-				printf("ip4 is valid\n");
+				ip4_print(ip4);
 			break;
 		case ARP_ETHERTYPE:
-			// enqueue pkt for arp handler and notify it
 			arp = (struct arp_pkt *)(pkt->data);
 			if(arp_is_valid(arp))
 				arp_print(arp);
