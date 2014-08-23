@@ -22,7 +22,7 @@
 // technically a frame, but for the sake of consistency
 struct ethernet_pkt {
 	struct ether_header h;
-	//unsigned char data[];
+	unsigned char data[];
 } __attribute__((__packed__));
 
 
