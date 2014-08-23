@@ -1,11 +1,7 @@
 #include "arp.h"
 
 int arp_is_valid(struct arp_pkt *arp) {
-	/*  this is usually checked prior to calling this function anyway
-	if (arp->ether_h.ether_type != ARP_ETHERTYPE)
-		return 0;
-	*/
-	if (arp->arp_h.ar_hrd != ARPHRD_ETHER)
+	if (arp->arp_h.ar_hrd != ARP_HAF_ETHER)
 		return 0;
 	if (arp->arp_h.ar_pro != IP4_ETHERTYPE)
 		return 0;
@@ -13,8 +9,8 @@ int arp_is_valid(struct arp_pkt *arp) {
 		return 0;
 	if (arp->arp_h.ar_pln != sizeof(struct in_addr))
 		return 0;
-	if ( (arp->arp_h.ar_op != ARPOP_REQUEST) ||
-		 (arp->arp_h.ar_op != ARPOP_REPLY))
+	if ( (arp->arp_h.ar_op != ARP_OP_REQUEST) && 
+		 (arp->arp_h.ar_op != ARP_OP_REPLY))
 		return 0;
 	return 1;		
 }
@@ -38,16 +34,16 @@ void arp_print(struct arp_pkt *arp) {
 	}
 	*/
 	switch(arp->arp_h.ar_op) {
-		case ARPOP_REQUEST:
+		case ARP_OP_REQUEST:
 			printf("Request\n");
 			break;
-		case ARPOP_REPLY:
+		case ARP_OP_REPLY:
 			printf("Reply\n");
 			break;
-		case ARPOP_REVREQUEST:
-		case ARPOP_REVREPLY:
-		case ARPOP_INVREQUEST:
-		case ARPOP_INVREPLY:
+		case ARP_OP_REVREQUEST:
+		case ARP_OP_REVREPLY:
+		case ARP_OP_INVREQUEST:
+		case ARP_OP_INVREPLY:
 		default:
 			printf("Unknown Operation\n");
 	}

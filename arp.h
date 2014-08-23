@@ -2,7 +2,7 @@
 #define _ARP_
 
 #include "ethernet.h"
-#include "ip.h"
+#include "ip4.h"
 
 #include <sys/socket.h> // sockaddr, required for <net/if_arp.h>
 #include <net/if_arp.h> 
@@ -10,9 +10,31 @@
 #include <stdio.h> 		// printf
 #include <stdlib.h> 	// free
 
+#if BYTE_ORDER == LITTLE_ENDIAN
+#define ARP_HAF_ETHER		0x0100
+
+#define	ARP_OP_REQUEST		0x0100
+#define ARP_OP_REPLY		0x0200
+#define ARP_OP_REVREQUEST	0x0300
+#define ARP_OP_REVREPLY		0x0400
+#define ARP_OP_INVREQUEST	0x0800
+#define ARP_OP_INVREPLY		0x0900
+#endif
+
+#if BYTE_ORDER == BIG_ENDIAN
+#define ARP_HAF_ETHER		ARPHRD_ETHER
+
+#define ARP_OP_REQUEST		ARPOP_REQUEST
+#define ARP_OP_REPLY		ARPOP_REPLY
+#define ARP_OP_REVREQUEST	ARPOP_REVREQUEST
+#define ARP_OP_REVREPLY		ARPOP_REVREPLY
+#define ARP_OP_INVREQUEST	ARPOP_INVREQUEST
+#define ARP_OP_INVREPLY		ARPOP_INVREPLY
+#endif
+
+
 /* assumes ethernet hw type and IPv4 proto type*/
 struct arp_pkt {
-	struct ether_header ether_h;
 	struct arphdr arp_h; 
 	struct ether_addr sha;
 	struct in_addr spa;
