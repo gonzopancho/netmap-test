@@ -13,6 +13,8 @@
 #include <ifaddrs.h> 	// getifaddrs
 #include <net/if_dl.h>	// sockaddr_dl
 #include "ethernet.h"
+#include "arp.h"
+#include "ip4.h"
 
 void print_nmreq(struct nmreq *req);
 void print_netmap_if(struct netmap_if *nif);
@@ -21,6 +23,7 @@ void print_ring2(struct netmap_ring *ring, uint32_t ridx);
 void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
 int get_if_hwaddr(const char* if_name, struct ether_addr *addr);
+void dispatch(struct ethernet_pkt *pkt);
 
 
 int main() {
@@ -80,7 +83,7 @@ int main() {
 		fprintf(stderr, "get_if_hwaddr(%s) failed", ifname);
 		exit(1);
 	}
-	printf("MAC Address: %s\n", ether_ntoa_r(&mac, macstr));
+	printf("MAC Address for %s: %s\n", ifname, ether_ntoa_r(&mac, macstr));
 
 	/* main poll loop */
 	for(;;) {
@@ -94,11 +97,14 @@ int main() {
 		for (; ring->avail > 0; ring->avail--) {
  			print_ring2(ring, 0);
  			i = ring->cur;
- 			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);	
-			etherpkt = (struct ethernet_pkt *)(void *)buf;
-			if (!ethernet_is_valid(etherpkt, &mac))
-				printf("WARN: invalid ethernet packet\n");
+ 			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);
 			print_buf2(buf, ring->slot[i].len);
+			etherpkt = (struct ethernet_pkt *)(void *)buf;
+			if (!ethernet_is_valid(etherpkt, &mac)) {
+				printf("WARN: invalid ethernet packet\n");
+			} else {
+				dispatch(etherpkt);
+			}
  			ring->cur = NETMAP_RING_NEXT(ring, i);
 		}
 	}
@@ -196,3 +202,24 @@ int get_if_hwaddr(const char* if_name, struct ether_addr *addr) {
 }
 
 
+void dispatch(struct ethernet_pkt *pkt) {
+	struct arp_pkt *arp;
+	struct ip4_pkt *ip4;
+
+	switch (pkt->h.ether_type) {
+		case IP4_ETHERTYPE:
+			ip4 = (struct ip4_pkt *)(pkt->data);
+			if(ip4_is_valid(ip4))
+				printf("ip4 is valid\n");
+			break;
+		case ARP_ETHERTYPE:
+			// enqueue pkt for arp handler and notify it
+			arp = (struct arp_pkt *)(pkt->data);
+			if(arp_is_valid(arp))
+				arp_print(arp);
+			break;
+		case IP6_ETHERTYPE:
+		default:
+			printf("DISPATCH: unknown ethertype\n");
+	}
+}

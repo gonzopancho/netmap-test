@@ -1,6 +1,6 @@
 PROGS	=	reader
 
-CLEANFILES = $(PROGS) arp.o ip.o ethernet.o
+CLEANFILES = $(PROGS) arp.o ip4.o ethernet.o
 NO_MAN=
 CFLAGS += -Werror -Wall -nostdinc -I/usr/include 
 CFLAGS += -Wextra
@@ -12,6 +12,6 @@ LDFLAGS +=
 
 all: $(PROGS)
 
-reader: arp.o ip.o ethernet.o
-	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} ethernet.o $(LDFLAGS)
+reader: arp.o ip4.o ethernet.o
+	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o $(LDFLAGS)
 
