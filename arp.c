@@ -54,9 +54,4 @@ void arp_print(struct arp_pkt *arp) {
 
 	printf("  Sender: %s (%s)\n", spa, sha); 
 	printf("  Target: %s (%s)\n", tpa, tha);
-
-	free(sha);
-	free(spa);
-	free(tha);
-	free(tpa);
 }

@@ -8,7 +8,6 @@
 #include <net/if_arp.h> 
 
 #include <stdio.h> 		// printf
-#include <stdlib.h> 	// free
 
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define ARP_HAF_ETHER		0x0100
