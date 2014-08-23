@@ -1,6 +1,6 @@
-#include "ip.h"
+#include "ip4.h"
 
-int ip_is_valid(struct pkt_ip *ip) {
+int ip4_is_valid(struct ip4_pkt *ip) {
 	/*  this is usually checked prior to calling this function anyway
 	if (ip->ether_h.ether_type != IP4_ETHERTYPE)
 		return 0;
