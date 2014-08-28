@@ -16,6 +16,25 @@
 #include "arp.h"
 #include "ip4.h"
 
+
+
+
+struct if_info {
+	struct ether_addr mac;	/* eg ff:ff:ff:ff:ff:ff */
+	char *ifname;			/* eg em0 */
+	uint32_t mtu;			/* eg 1500 */
+	uint16_t link_type;  	/* eg ARP_HAF_ETHER */
+};
+
+
+struct inet_info {
+	struct in_addr addr;
+	struct in_addr netmask;
+	struct in_addr broadcast;
+	struct in_addr default_route;
+};
+
+
 void print_nmreq(struct nmreq *req);
 void print_netmap_if(struct netmap_if *nif);
 void print_ring(struct netmap_ring *ring, uint32_t ridx);
@@ -24,6 +43,10 @@ void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
 int get_if_hwaddr(const char* if_name, struct ether_addr *addr);
 void dispatch(struct ethernet_pkt *pkt);
+int init_if_info(struct if_info *ifi, const char *ifname);
+void print_if_info(struct if_info *ifi);
+int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
+void print_inet_info(struct inet_info *ineti);
 
 
 int main() {
@@ -31,14 +54,29 @@ int main() {
 	struct netmap_ring *ring;
 	struct nmreq req;
 	struct pollfd pfd;
+	struct if_info ifi;
+	struct inet_info ineti;
 	int fd, retval;
 	uint32_t i;
 	char *buf;
 	void *mem;
 	char *ifname = "em0";
-	struct ether_addr mac;
-	char macstr[18];
 	struct ethernet_pkt *etherpkt;
+
+	
+	if (!init_if_info(&ifi, "em0")) {
+		fprintf(stderr, "if_info_init failed\n");
+		exit(1);
+	}
+
+	print_if_info(&ifi);
+
+	if (!init_inet_info(&ineti, "192.168.37.111", "255.255.255.0", "192.168.37.1")) {
+		fprintf(stderr, "init_inet_info failed\n");
+		exit(1);
+	}	
+
+	print_inet_info(&ineti);
 
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
@@ -79,11 +117,6 @@ int main() {
 	ring = NETMAP_RXRING(nifp, 0);
 	print_ring(ring, 0);
 
-	if(!get_if_hwaddr(ifname, &mac)) {
-		fprintf(stderr, "get_if_hwaddr(%s) failed", ifname);
-		exit(1);
-	}
-	printf("MAC Address for %s: %s\n", ifname, ether_ntoa_r(&mac, macstr));
 
 	/* main poll loop */
 	for(;;) {
@@ -100,7 +133,7 @@ int main() {
  			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);
 			print_buf2(buf, ring->slot[i].len);
 			etherpkt = (struct ethernet_pkt *)(void *)buf;
-			if (!ethernet_is_valid(etherpkt, &mac)) {
+			if (!ethernet_is_valid(etherpkt, &ifi.mac)) {
 				printf("WARN: invalid ethernet packet\n");
 			} else {
 				dispatch(etherpkt);
@@ -221,4 +254,64 @@ void dispatch(struct ethernet_pkt *pkt) {
 		default:
 			printf("DISPATCH: unknown ethertype\n");
 	}
+}
+
+
+int init_if_info(struct if_info *ifi, const char *ifname) {
+	size_t len;
+	len = strnlen(ifname, IF_NAMESIZE);
+
+	/* need space for NUL termination */
+	if (len == IF_NAMESIZE)
+		len++;
+
+	ifi->ifname = malloc(len);
+	if (!ifi->ifname)
+		return 0;
+
+	strncpy(ifi->ifname, ifname, len);
+
+	ifi->mtu = 1500;
+	return get_if_hwaddr(ifi->ifname, &ifi->mac);
+}
+
+void print_if_info(struct if_info *ifi) {
+	char macstr[18];
+	printf("Interface: %s, MAC: %s, MTU: %d\n", 
+			ifi->ifname, 
+			ether_ntoa_r(&ifi->mac, macstr), 
+			ifi->mtu);
+}
+
+int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route) {
+	uint32_t iaddr, inetmask, ibroadcast;
+
+	if (!inet_aton(addr, &ineti->addr))
+		return 0;
+	if (!inet_aton(netmask, &ineti->netmask))
+		return 0;
+	if (!inet_aton(default_route, &ineti->default_route))
+		return 0;
+
+	iaddr = *(uint32_t *) &ineti->addr;
+	inetmask = *(uint32_t *) &ineti->netmask;
+	ibroadcast = iaddr | (~ inetmask);
+	memcpy(&ineti->broadcast, &ibroadcast, sizeof(uint32_t));
+	return 1;
+}
+
+
+void print_inet_info(struct inet_info *ineti) {
+	char addr[4*4];
+	char netmask[4*4];
+	char broadcast[4*4];
+	char default_route[4*4];
+
+	inet_ntoa_r(ineti->addr, addr, sizeof(addr));
+	inet_ntoa_r(ineti->netmask, netmask, sizeof(netmask));
+	inet_ntoa_r(ineti->broadcast, broadcast, sizeof(broadcast));
+	inet_ntoa_r(ineti->default_route, default_route, sizeof(default_route));
+
+	printf("IP: %s, NETMASK: %s, BROADCAST: %s\nDEFAULT ROUTE: %s\n",
+			addr, netmask, broadcast, default_route);
 }
