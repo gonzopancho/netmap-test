@@ -283,8 +283,6 @@ void print_if_info(struct if_info *ifi) {
 }
 
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route) {
-	uint32_t iaddr, inetmask, inetwork, ibroadcast;
-
 	if (!inet_aton(addr, &ineti->addr)) {
 		return 0;
 	}
@@ -294,13 +292,9 @@ int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *def
 	if (!inet_aton(default_route, &ineti->default_route)) {
 		return 0;
 	}
-	iaddr = *(uint32_t *) &ineti->addr;
-	inetmask = *(uint32_t *) &ineti->netmask;
-	inetwork = iaddr & inetmask;
-	ibroadcast = inetwork | (~ inetmask);
 
-	memcpy(&ineti->network, &inetwork, sizeof(uint32_t));
-	memcpy(&ineti->broadcast, &ibroadcast, sizeof(uint32_t));
+	ineti->network.s_addr = ineti->addr.s_addr & ineti->netmask.s_addr;
+	ineti->broadcast.s_addr = ineti->network.s_addr | (~ineti->netmask.s_addr);
 	return 1;
 }
 
