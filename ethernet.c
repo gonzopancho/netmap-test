@@ -1,8 +1,12 @@
 #include "ethernet.h"
 
+
+u_char ETHER_ADDR_BROADCAST[ETHER_ADDR_LEN] = { 0xFF, 0xFF, 0xFF, 
+												0xFF, 0xFF, 0xFF };
+
+
 int ethernet_is_valid (const struct ethernet_pkt *pkt, 
 					   const struct ether_addr   *me) {
-
 	if ((pkt->h.ether_type != IP4_ETHERTYPE) && 
 		(pkt->h.ether_type != ARP_ETHERTYPE))
 		return 0;
@@ -14,8 +18,7 @@ int ethernet_is_valid (const struct ethernet_pkt *pkt,
 }
 
 int ethernet_addr_is_broadcast (const struct ether_addr *addr) {
-	uint64_t broadcast = UINT64_MAX;
-	if (memcmp(addr, &broadcast, ETHER_ADDR_LEN) == 0)
+	if (memcmp(addr->octet, ETHER_ADDR_BROADCAST, ETHER_ADDR_LEN) == 0)
 		return 1;
 	else
 		return 0;

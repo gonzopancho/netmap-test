@@ -19,6 +19,9 @@
 #endif
 
 
+extern u_char ETHER_ADDR_BROADCAST[ETHER_ADDR_LEN];
+
+
 // technically a frame, but for the sake of consistency
 struct ethernet_pkt {
 	struct ether_header h;
