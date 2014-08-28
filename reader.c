@@ -17,8 +17,6 @@
 #include "ip4.h"
 
 
-
-
 struct if_info {
 	struct ether_addr mac;	/* eg ff:ff:ff:ff:ff:ff */
 	char *ifname;			/* eg em0 */
@@ -29,6 +27,7 @@ struct if_info {
 
 struct inet_info {
 	struct in_addr addr;
+	struct in_addr network;
 	struct in_addr netmask;
 	struct in_addr broadcast;
 	struct in_addr default_route;
@@ -284,18 +283,23 @@ void print_if_info(struct if_info *ifi) {
 }
 
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route) {
-	uint32_t iaddr, inetmask, ibroadcast;
+	uint32_t iaddr, inetmask, inetwork, ibroadcast;
 
-	if (!inet_aton(addr, &ineti->addr))
+	if (!inet_aton(addr, &ineti->addr)) {
 		return 0;
-	if (!inet_aton(netmask, &ineti->netmask))
+	}
+	if (!inet_aton(netmask, &ineti->netmask)) {
 		return 0;
-	if (!inet_aton(default_route, &ineti->default_route))
+	}
+	if (!inet_aton(default_route, &ineti->default_route)) {
 		return 0;
-
+	}
 	iaddr = *(uint32_t *) &ineti->addr;
 	inetmask = *(uint32_t *) &ineti->netmask;
-	ibroadcast = iaddr | (~ inetmask);
+	inetwork = iaddr & inetmask;
+	ibroadcast = inetwork | (~ inetmask);
+
+	memcpy(&ineti->network, &inetwork, sizeof(uint32_t));
 	memcpy(&ineti->broadcast, &ibroadcast, sizeof(uint32_t));
 	return 1;
 }
@@ -304,14 +308,17 @@ int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *def
 void print_inet_info(struct inet_info *ineti) {
 	char addr[4*4];
 	char netmask[4*4];
+	char network[4*4];
 	char broadcast[4*4];
 	char default_route[4*4];
 
 	inet_ntoa_r(ineti->addr, addr, sizeof(addr));
 	inet_ntoa_r(ineti->netmask, netmask, sizeof(netmask));
+    inet_ntoa_r(ineti->network, network, sizeof(network));
 	inet_ntoa_r(ineti->broadcast, broadcast, sizeof(broadcast));
 	inet_ntoa_r(ineti->default_route, default_route, sizeof(default_route));
 
-	printf("IP: %s, NETMASK: %s, BROADCAST: %s\nDEFAULT ROUTE: %s\n",
-			addr, netmask, broadcast, default_route);
+	printf("IP: %s, NETMASK: %s\n", addr, netmask);
+	printf("NETWORK: %s, BROADCAST: %s\n", network, broadcast);
+	printf("DEFAULT ROUTE: %s\n", default_route);
 }
