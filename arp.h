@@ -43,5 +43,16 @@ struct arp_pkt {
 
 int arp_is_valid(struct arp_pkt *arp);
 void arp_print(struct arp_pkt *arp);
+int arp_create_request_template(struct ethernet_pkt *pkt, 
+								struct ether_addr *src_mac, 
+								struct in_addr *src_ip);
+void arp_update_request(struct ethernet_pkt *pkt, 
+						struct in_addr *target_ip);
+int arp_create_reply_template(struct ethernet_pkt *pkt, 
+								struct ether_addr *src_mac, 
+								struct in_addr *src_ip);
+void arp_update_reply(struct ethernet_pkt *pkt, 
+						struct in_addr *target_ip, 
+						struct ether_addr *target_mac);
 
 #endif

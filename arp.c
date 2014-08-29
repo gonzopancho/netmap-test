@@ -55,3 +55,73 @@ void arp_print(struct arp_pkt *arp) {
 	printf("  Sender: %s (%s)\n", spa, sha); 
 	printf("  Target: %s (%s)\n", tpa, tha);
 }
+
+int arp_create_request_template(struct ethernet_pkt *pkt, 
+								struct ether_addr *src_mac, 
+								struct in_addr *src_ip) {
+	struct arp_pkt *arp;
+	if (!pkt)
+		return 0;
+
+	/* ethernet header fields */
+	memcpy(pkt->h.ether_dhost, ETHER_ADDR_BROADCAST, 
+			sizeof(ETHER_ADDR_BROADCAST));
+	memcpy(pkt->h.ether_shost, src_mac, sizeof(struct ether_addr));
+	pkt->h.ether_type = IP4_ETHERTYPE;
+
+	/* arp fields */
+	arp = (struct arp_pkt*) pkt->data;
+	arp->arp_h.ar_hrd = ARP_HAF_ETHER;
+	arp->arp_h.ar_pro = IP4_ETHERTYPE;
+	arp->arp_h.ar_hln = ETHER_ADDR_LEN;
+	arp->arp_h.ar_pln = sizeof(struct in_addr);
+	arp->arp_h.ar_op = ARP_OP_REQUEST;
+	memcpy(&arp->sha, src_mac, sizeof(struct ether_addr));
+	memcpy(&arp->spa, src_ip,  sizeof(struct in_addr));
+	memset(&arp->tha, 0, sizeof(struct ether_addr));
+	/* tpa is really the only field that changes in a request */
+
+	return 1;
+}
+
+void arp_update_request(struct ethernet_pkt *pkt, 
+						struct in_addr *target_ip) {
+	struct arp_pkt *arp = (struct arp_pkt*) pkt->data;		
+	memcpy(&arp->tpa, target_ip, sizeof(struct in_addr));
+}
+
+int arp_create_reply_template(struct ethernet_pkt *pkt, 
+								struct ether_addr *src_mac, 
+								struct in_addr *src_ip) {
+    struct arp_pkt *arp;
+    if (!pkt)
+        return 0;
+
+    /* ethernet header fields */
+	/* ether_dhost changes in a reply*/
+    memcpy(pkt->h.ether_shost, src_mac, sizeof(struct ether_addr));
+    pkt->h.ether_type = IP4_ETHERTYPE;
+
+    /* arp fields */
+    arp = (struct arp_pkt*) pkt->data;
+    arp->arp_h.ar_hrd = ARP_HAF_ETHER;
+    arp->arp_h.ar_pro = IP4_ETHERTYPE;
+    arp->arp_h.ar_hln = ETHER_ADDR_LEN;
+    arp->arp_h.ar_pln = sizeof(struct in_addr);
+    arp->arp_h.ar_op = ARP_OP_REPLY;
+    memcpy(&arp->sha, src_mac, sizeof(struct ether_addr));
+    memcpy(&arp->spa, src_ip,  sizeof(struct in_addr));
+	/* tha and tpa change in a reply */
+
+	return 1;
+}
+
+void arp_update_reply(struct ethernet_pkt *pkt, 
+						struct in_addr *target_ip, 
+						struct ether_addr *target_mac) {
+	struct arp_pkt *arp = (struct arp_pkt*) pkt->data;
+	memcpy(pkt->h.ether_dhost, target_mac, sizeof(struct ether_addr));
+	memcpy(&arp->tha, target_mac, sizeof(struct ether_addr));
+	memcpy(&arp->tpa, target_ip, sizeof(struct in_addr));
+}
+
