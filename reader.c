@@ -41,7 +41,7 @@ void print_ring2(struct netmap_ring *ring, uint32_t ridx);
 void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
 int get_if_hwaddr(const char* if_name, struct ether_addr *addr);
-void dispatch(struct ethernet_pkt *pkt);
+void dispatch(struct ethernet_pkt *pkt, uint16_t len);
 int init_if_info(struct if_info *ifi, const char *ifname);
 void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
@@ -130,12 +130,13 @@ int main() {
  			print_ring2(ring, 0);
  			i = ring->cur;
  			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);
-			print_buf2(buf, ring->slot[i].len);
+			//print_buf2(buf, ring->slot[i].len);
 			etherpkt = (struct ethernet_pkt *)(void *)buf;
 			if (!ethernet_is_valid(etherpkt, &ifi.mac)) {
 				printf("WARN: invalid ethernet packet\n");
+				print_buf2(buf, ring->slot[i].len);
 			} else {
-				dispatch(etherpkt);
+				dispatch(etherpkt, ring->slot[i].len);
 			}
  			ring->cur = NETMAP_RING_NEXT(ring, i);
 		}
@@ -187,7 +188,7 @@ void print_ring2(struct netmap_ring *ring, uint32_t ridx) {
 
 void print_buf(char *buf, uint16_t len) {
 	uint16_t i;
-	printf("*****buf*****\n");
+	printf("*****buf(%hu)*****\n", len);
 
 	for(i = 0; i + 4 < len; i+=4) {
 		printf("%.2X %.2X %.2X %.2X\n", buf[i] & 0xFF, buf[i+1] & 0xFF, buf[i+2] & 0xFF, buf[i+3] & 0xFF);
@@ -234,7 +235,7 @@ int get_if_hwaddr(const char* if_name, struct ether_addr *addr) {
 }
 
 
-void dispatch(struct ethernet_pkt *pkt) {
+void dispatch(struct ethernet_pkt *pkt, uint16_t len) {
 	struct arp_pkt *arp;
 	struct ip4_pkt *ip4;
 
@@ -246,8 +247,10 @@ void dispatch(struct ethernet_pkt *pkt) {
 			break;
 		case ARP_ETHERTYPE:
 			arp = (struct arp_pkt *)(pkt->data);
-			if(arp_is_valid(arp))
+			if(arp_is_valid(arp)) {
+				print_buf((char *)pkt, len);
 				arp_print(arp);
+			}
 			break;
 		case IP6_ETHERTYPE:
 		default:
