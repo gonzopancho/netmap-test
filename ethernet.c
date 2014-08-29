@@ -1,9 +1,10 @@
 #include "ethernet.h"
 
 
-u_char ETHER_ADDR_BROADCAST[ETHER_ADDR_LEN] = { 0xFF, 0xFF, 0xFF, 
-												0xFF, 0xFF, 0xFF };
-
+struct ether_addr ETHER_ADDR_BROADCAST = {
+					.octet = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF } };
+struct ether_addr ETHER_ADDR_ZERO = {
+					.octet = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 } };
 
 int ethernet_is_valid (const struct ethernet_pkt *pkt, 
 					   const struct ether_addr   *me) {
@@ -18,10 +19,7 @@ int ethernet_is_valid (const struct ethernet_pkt *pkt,
 }
 
 int ethernet_addr_is_broadcast (const struct ether_addr *addr) {
-	if (memcmp(addr->octet, ETHER_ADDR_BROADCAST, ETHER_ADDR_LEN) == 0)
-		return 1;
-	else
-		return 0;
+	return ethernet_addr_equals(addr, &ETHER_ADDR_BROADCAST);
 }
 
 int ethernet_addr_equals(const struct ether_addr *a, 
