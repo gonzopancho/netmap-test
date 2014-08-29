@@ -61,8 +61,11 @@ int main() {
 	void *mem;
 	char *ifname = "em0";
 	struct ethernet_pkt *etherpkt;
+	struct ethernet_pkt *arp_request_template;
+	struct ethernet_pkt *arp_reply_template;
+	size_t ether_arp_len;
 
-	
+
 	if (!init_if_info(&ifi, "em0")) {
 		fprintf(stderr, "if_info_init failed\n");
 		exit(1);
@@ -77,11 +80,31 @@ int main() {
 
 	print_inet_info(&ineti);
 
+	ether_arp_len = sizeof(struct ether_header) + sizeof(struct arp_pkt);
+	if (ether_arp_len < ETHER_MIN_LEN - ETHER_CRC_LEN)
+		ether_arp_len = ETHER_MIN_LEN - ETHER_CRC_LEN;
+
+	arp_request_template = malloc(ether_arp_len);
+	if (!arp_request_template) {
+		fprintf(stderr, "Error allocating arp_request_template\n");
+		exit(1);
+	}
+
+	arp_create_request_template(arp_request_template, &ifi.mac, &ineti.addr); 
+
+	arp_reply_template = malloc(ether_arp_len);
+	if (!arp_reply_template) {
+		fprintf(stderr, "Error allocating arp_reply_template\n");
+		exit(1);
+	}
+
+	arp_create_reply_template(arp_reply_template, &ifi.mac, &ineti.addr);
+
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "Error opening /dev/netmap: %d\n", fd);
 		close(fd);
-		return 1;
+		exit(1);
 	}
 	
 	pfd.fd = fd;
@@ -90,7 +113,7 @@ int main() {
 	bzero(&req, sizeof(req));
 	strncpy(req.nr_name, ifname, sizeof(req.nr_name));
 	req.nr_version = NETMAP_API;
-	req.nr_ringid = NETMAP_NO_TX_POLL;
+	//req.nr_ringid = NETMAP_NO_TX_POLL;
 
 	/* register the NIC for netmap mode */
 	retval = ioctl(fd, NIOCREGIF, &req);
@@ -127,7 +150,7 @@ int main() {
 
 		ring = NETMAP_RXRING(nifp, 0);
 		for (; ring->avail > 0; ring->avail--) {
- 			print_ring2(ring, 0);
+ 			//print_ring2(ring, 0);
  			i = ring->cur;
  			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);
 			//print_buf2(buf, ring->slot[i].len);
@@ -237,18 +260,14 @@ int get_if_hwaddr(const char* if_name, struct ether_addr *addr) {
 
 void dispatch(struct ethernet_pkt *pkt, uint16_t len) {
 	struct arp_pkt *arp;
-	struct ip4_pkt *ip4;
 
 	switch (pkt->h.ether_type) {
 		case IP4_ETHERTYPE:
-			ip4 = (struct ip4_pkt *)(pkt->data);
-			if(ip4_is_valid(ip4))
-				ip4_print(ip4);
 			break;
 		case ARP_ETHERTYPE:
 			arp = (struct arp_pkt *)(pkt->data);
 			if(arp_is_valid(arp)) {
-				print_buf((char *)pkt, len);
+				print_buf2((char *)pkt, len);
 				arp_print(arp);
 			}
 			break;
