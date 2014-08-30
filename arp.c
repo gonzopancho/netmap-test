@@ -95,7 +95,7 @@ void arp_create_request_template(struct ethernet_pkt *pkt,
 	memcpy(pkt->h.ether_dhost, &ETHER_ADDR_BROADCAST, 
 			sizeof(ETHER_ADDR_BROADCAST));
 	memcpy(pkt->h.ether_shost, src_mac, sizeof(struct ether_addr));
-	pkt->h.ether_type = IP4_ETHERTYPE;
+	pkt->h.ether_type = ARP_ETHERTYPE;
 
 	/* arp fields */
 	arp = (struct arp_pkt*) pkt->data;
@@ -124,7 +124,7 @@ void arp_create_reply_template(struct ethernet_pkt *pkt,
     /* ethernet header fields */
 	/* ether_dhost changes in a reply*/
     memcpy(pkt->h.ether_shost, src_mac, sizeof(struct ether_addr));
-    pkt->h.ether_type = IP4_ETHERTYPE;
+    pkt->h.ether_type = ARP_ETHERTYPE;
 
     /* arp fields */
     arp = (struct arp_pkt*) pkt->data;
