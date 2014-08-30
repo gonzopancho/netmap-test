@@ -24,7 +24,6 @@ struct if_info {
 	uint16_t link_type;  	/* eg ARP_HAF_ETHER */
 };
 
-
 struct inet_info {
 	struct in_addr addr;
 	struct in_addr network;
@@ -46,11 +45,13 @@ int init_if_info(struct if_info *ifi, const char *ifname);
 void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
 void print_inet_info(struct inet_info *ineti);
+int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, uint16_t pktlen);
 
 
 int main() {
 	struct netmap_if *nifp;
-	struct netmap_ring *ring;
+	struct netmap_ring *rxring;
+	struct netmap_ring *txring;
 	struct nmreq req;
 	struct pollfd pfd;
 	struct if_info ifi;
@@ -63,8 +64,9 @@ int main() {
 	struct ethernet_pkt *etherpkt;
 	struct ethernet_pkt *arp_request_template;
 	struct ethernet_pkt *arp_reply_template;
+	struct ethernet_pkt *arp_temp;
 	size_t ether_arp_len;
-
+	struct arp_pkt *arp;
 
 	if (!init_if_info(&ifi, "em0")) {
 		fprintf(stderr, "if_info_init failed\n");
@@ -84,21 +86,25 @@ int main() {
 	if (ether_arp_len < ETHER_MIN_LEN - ETHER_CRC_LEN)
 		ether_arp_len = ETHER_MIN_LEN - ETHER_CRC_LEN;
 
-	arp_request_template = malloc(ether_arp_len);
+	arp_request_template = calloc(1, ether_arp_len);
 	if (!arp_request_template) {
 		fprintf(stderr, "Error allocating arp_request_template\n");
 		exit(1);
 	}
-
 	arp_create_request_template(arp_request_template, &ifi.mac, &ineti.addr); 
 
-	arp_reply_template = malloc(ether_arp_len);
+	arp_reply_template = calloc(1, ether_arp_len);
 	if (!arp_reply_template) {
 		fprintf(stderr, "Error allocating arp_reply_template\n");
 		exit(1);
 	}
-
 	arp_create_reply_template(arp_reply_template, &ifi.mac, &ineti.addr);
+
+	arp_temp = malloc(ether_arp_len);
+	if (!arp_temp) {
+		fprintf(stderr, "Error allocating arp_temp\n");
+		exit(1);
+	}
 
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
@@ -113,7 +119,6 @@ int main() {
 	bzero(&req, sizeof(req));
 	strncpy(req.nr_name, ifname, sizeof(req.nr_name));
 	req.nr_version = NETMAP_API;
-	//req.nr_ringid = NETMAP_NO_TX_POLL;
 
 	/* register the NIC for netmap mode */
 	retval = ioctl(fd, NIOCREGIF, &req);
@@ -136,8 +141,9 @@ int main() {
 	nifp = NETMAP_IF(mem, req.nr_offset);
 	print_netmap_if(nifp);
 
-	ring = NETMAP_RXRING(nifp, 0);
-	print_ring(ring, 0);
+	rxring = NETMAP_RXRING(nifp, 0);
+	txring = NETMAP_TXRING(nifp, 0);
+	print_ring(rxring, 0);
 
 
 	/* main poll loop */
@@ -148,21 +154,38 @@ int main() {
 			continue;
 		}
 
-		ring = NETMAP_RXRING(nifp, 0);
-		for (; ring->avail > 0; ring->avail--) {
- 			//print_ring2(ring, 0);
- 			i = ring->cur;
- 			buf = NETMAP_BUF(ring, ring->slot[i].buf_idx);
-			//print_buf2(buf, ring->slot[i].len);
+		for (; rxring->avail > 0; rxring->avail--) {
+ 			i = rxring->cur;
+			rxring->cur = NETMAP_RING_NEXT(rxring, i);
+ 			buf = NETMAP_BUF(rxring, rxring->slot[i].buf_idx);
 			etherpkt = (struct ethernet_pkt *)(void *)buf;
 			if (!ethernet_is_valid(etherpkt, &ifi.mac)) {
-				printf("WARN: invalid ethernet packet\n");
-				print_buf2(buf, ring->slot[i].len);
-			} else {
-				dispatch(etherpkt, ring->slot[i].len);
+				continue;
 			}
- 			ring->cur = NETMAP_RING_NEXT(ring, i);
-		}
+
+			if (etherpkt->h.ether_type != ARP_ETHERTYPE)
+				continue;
+
+			arp = (struct arp_pkt*) etherpkt->data;
+			if (!arp_is_valid(arp))
+				continue;
+		
+			if (arp->arp_h.ar_op == ARP_OP_REQUEST) {	
+				if(arp->tpa.s_addr != ineti.addr.s_addr)
+					continue;
+
+				/* send a reply for this request */
+				memcpy(arp_temp, arp_reply_template, ether_arp_len);
+				arp_update_reply(arp_temp, &arp->spa, &arp->sha);
+				transmit_enqueue(txring, arp_temp, ether_arp_len);
+				//ioctl(pfd.fd, NIOCTXSYNC, NULL);
+			} else {
+				if (!arp_reply_filter(arp, &ineti.addr))
+					continue;
+		        // check if replying for an IP that I want
+		        // then add to arp cache
+		    }
+		} // for rxring
 	}
 
 	return 0;
@@ -213,8 +236,10 @@ void print_buf(char *buf, uint16_t len) {
 	uint16_t i;
 	printf("*****buf(%hu)*****\n", len);
 
-	for(i = 0; i + 4 < len; i+=4) {
-		printf("%.2X %.2X %.2X %.2X\n", buf[i] & 0xFF, buf[i+1] & 0xFF, buf[i+2] & 0xFF, buf[i+3] & 0xFF);
+	for(i = 0; i + 8 < len; i+=8) {
+		printf("%.2X %.2X %.2X %.2X %.2X %.2X %.2X %.2X\n", 
+			buf[i] & 0xFF, buf[i+1] & 0xFF, buf[i+2] & 0xFF, buf[i+3] & 0xFF,
+			buf[i+4] & 0xFF, buf[i+5] & 0xFF, buf[i+6] & 0xFF, buf[i+7] & 0xFF);
 	}
 	for(; i < len; i++) {
 		printf("%.2X ", buf[i] & 0xFF);
@@ -337,4 +362,26 @@ void print_inet_info(struct inet_info *ineti) {
 	printf("IP: %s, NETMASK: %s\n", addr, netmask);
 	printf("NETWORK: %s, BROADCAST: %s\n", network, broadcast);
 	printf("DEFAULT ROUTE: %s\n", default_route);
+}
+
+
+int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, 
+					uint16_t pktlen) {
+	uint32_t cur;
+	struct netmap_slot *slot;
+	char *buf;
+
+	if (ring->avail == 0)
+		return 0;
+
+	cur = ring->cur;
+	slot = &ring->slot[cur];
+	slot->flags = NS_REPORT;
+	slot->len = pktlen;
+    buf = NETMAP_BUF(ring, slot->buf_idx);
+	memcpy(buf, pkt, pktlen);
+	ring->avail--;
+	ring->cur = NETMAP_RING_NEXT(ring, cur);
+
+	return 1;
 }
