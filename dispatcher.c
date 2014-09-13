@@ -107,3 +107,25 @@ void *dispatcher(void *threadarg) {
     } // while(1)
 }
 #endif
+
+#if 0
+void dispatch(struct ethernet_pkt *pkt, uint16_t len) {
+    struct arp_pkt *arp;
+
+    switch (pkt->h.ether_type) {
+        case IP4_ETHERTYPE:
+            break;
+        case ARP_ETHERTYPE:
+            arp = (struct arp_pkt *)(pkt->data);
+            if(arp_is_valid(arp)) {
+                print_buf2((char *)pkt, len);
+                arp_print(arp);
+            }
+            break;
+        case IP6_ETHERTYPE:
+        default:
+            printf("DISPATCH: unknown ethertype\n");
+    }
+}
+#endif
+

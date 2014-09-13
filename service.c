@@ -14,10 +14,9 @@
 #include <net/if_dl.h>	// sockaddr_dl
 #include <pthread.h>
 #include "ethernet.h"
-#include "arp.h"
 #include "ip4.h"
-#include "dispatcher.h"
 #include "worker.h"
+#include "dispatcher.h"
 
 
 #define NUM_WORKERS 4
@@ -47,7 +46,6 @@ void print_ring2(struct netmap_ring *ring, uint32_t ridx);
 void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
 int get_if_hwaddr(const char* if_name, struct ether_addr *addr);
-void dispatch(struct ethernet_pkt *pkt, uint16_t len);
 int init_if_info(struct if_info *ifi, const char *ifname);
 void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
@@ -72,11 +70,6 @@ int main() {
 	void *mem;
 	char *ifname = "em0";
 	struct ethernet_pkt *etherpkt;
-	struct ethernet_pkt *arp_request_template;
-	struct ethernet_pkt *arp_reply_template;
-	struct ethernet_pkt *arp_temp;
-	size_t ether_arp_len;
-	struct arp_pkt *arp;
 
 	if (!init_if_info(&ifi, "em0")) {
 		fprintf(stderr, "if_info_init failed\n");
@@ -92,29 +85,6 @@ int main() {
 
 	print_inet_info(&ineti);
 
-	ether_arp_len = sizeof(struct ether_header) + sizeof(struct arp_pkt);
-	if (ether_arp_len < ETHER_MIN_LEN - ETHER_CRC_LEN)
-		ether_arp_len = ETHER_MIN_LEN - ETHER_CRC_LEN;
-
-	arp_request_template = calloc(1, ether_arp_len);
-	if (!arp_request_template) {
-		fprintf(stderr, "Error allocating arp_request_template\n");
-		exit(1);
-	}
-	arp_create_request_template(arp_request_template, &ifi.mac, &ineti.addr); 
-
-	arp_reply_template = calloc(1, ether_arp_len);
-	if (!arp_reply_template) {
-		fprintf(stderr, "Error allocating arp_reply_template\n");
-		exit(1);
-	}
-	arp_create_reply_template(arp_reply_template, &ifi.mac, &ineti.addr);
-
-	arp_temp = malloc(ether_arp_len);
-	if (!arp_temp) {
-		fprintf(stderr, "Error allocating arp_temp\n");
-		exit(1);
-	}
 
 	fd = open("/dev/netmap", O_RDWR);
 	if (fd < 0) {
@@ -192,28 +162,6 @@ int main() {
 				continue;
 			}
 
-			if (etherpkt->h.ether_type != ARP_ETHERTYPE)
-				continue;
-
-			arp = (struct arp_pkt*) etherpkt->data;
-			if (!arp_is_valid(arp))
-				continue;
-		
-			if (arp->arp_h.ar_op == ARP_OP_REQUEST) {	
-				if(arp->tpa.s_addr != ineti.addr.s_addr)
-					continue;
-
-				/* send a reply for this request */
-				memcpy(arp_temp, arp_reply_template, ether_arp_len);
-				arp_update_reply(arp_temp, &arp->spa, &arp->sha);
-				transmit_enqueue(txring, arp_temp, ether_arp_len);
-				//ioctl(pfd.fd, NIOCTXSYNC, NULL);
-			} else {
-				if (!arp_reply_filter(arp, &ineti.addr))
-					continue;
-		        // check if replying for an IP that I want
-		        // then add to arp cache
-		    }
 		} // for rxring
 	}
 
@@ -319,26 +267,6 @@ int get_if_hwaddr(const char* if_name, struct ether_addr *addr) {
 	}
 	freeifaddrs(ifas);
 	return ifa ? 1 : 0;
-}
-
-
-void dispatch(struct ethernet_pkt *pkt, uint16_t len) {
-	struct arp_pkt *arp;
-
-	switch (pkt->h.ether_type) {
-		case IP4_ETHERTYPE:
-			break;
-		case ARP_ETHERTYPE:
-			arp = (struct arp_pkt *)(pkt->data);
-			if(arp_is_valid(arp)) {
-				print_buf2((char *)pkt, len);
-				arp_print(arp);
-			}
-			break;
-		case IP6_ETHERTYPE:
-		default:
-			printf("DISPATCH: unknown ethertype\n");
-	}
 }
 
 
