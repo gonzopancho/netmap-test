@@ -51,23 +51,22 @@ void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
 void print_inet_info(struct inet_info *ineti);
 int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, uint16_t pktlen);
-
+int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp);
 
 int main() {
 	pthread_t threads[NUM_THREADS];
 	struct worker_data workerargs[NUM_WORKERS];
 
-	struct netmap_if *nifp;
+	struct netmap_if *nifp = NULL;
 	struct netmap_ring *rxring;
 	struct netmap_ring *txring;
-	struct nmreq req;
 	struct pollfd pfd;
 	struct if_info ifi;
 	struct inet_info ineti;
 	int fd, retval;
 	uint32_t i;
 	char *buf;
-	void *mem;
+	void *mem = NULL;
 	char *ifname = "em0";
 	struct ethernet_pkt *etherpkt;
 
@@ -85,46 +84,17 @@ int main() {
 
 	print_inet_info(&ineti);
 
-
-	fd = open("/dev/netmap", O_RDWR);
-	if (fd < 0) {
-		fprintf(stderr, "Error opening /dev/netmap: %d\n", fd);
-		close(fd);
+	if (!init_netmap(&fd, ifname, mem, nifp)) {
+		fprintf(stderr, "init_netmap failed\n");
 		exit(1);
 	}
-	
-	pfd.fd = fd;
-	pfd.events = (POLLIN);
-
-	bzero(&req, sizeof(req));
-	strncpy(req.nr_name, ifname, sizeof(req.nr_name));
-	req.nr_version = NETMAP_API;
-
-	/* register the NIC for netmap mode */
-	retval = ioctl(fd, NIOCREGIF, &req);
-	if (retval < 0) {
-		perror("NIOCREGIF failed");
-	}
-
-	/* give the NIC some time to unregister from the host stack */
-	sleep(2);
-
-	printf("After registration\n");
-	print_nmreq(&req);
-
-	mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-
-	if (mem == MAP_FAILED) {
-		perror("mmap failed");
-	}
-
-	nifp = NETMAP_IF(mem, req.nr_offset);
-	print_netmap_if(nifp);
 
 	rxring = NETMAP_RXRING(nifp, 0);
 	txring = NETMAP_TXRING(nifp, 0);
 	print_ring(rxring, 0);
 
+    pfd.fd = fd;
+    pfd.events = (POLLIN);
 
 
 	/* initialize workers */
@@ -352,3 +322,46 @@ int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt,
 
 	return 1;
 }
+
+
+int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp) {
+    struct nmreq req;
+	int retval;
+
+    *fd = open("/dev/netmap", O_RDWR);
+    if (*fd < 0) {
+        fprintf(stderr, "Error opening /dev/netmap: %d\n", *fd);
+        close(*fd);
+        return 0;
+    }
+
+    bzero(&req, sizeof(req));
+    strncpy(req.nr_name, ifname, sizeof(req.nr_name));
+    req.nr_version = 4;		// v4 shipped with FreeBSD 10
+
+    /* register the NIC for netmap mode */
+    retval = ioctl(*fd, NIOCREGIF, &req);
+    if (retval < 0) {
+        perror("NIOCREGIF failed");
+		return 0;
+    }
+
+    /* give the NIC some time to unregister from the host stack */
+    sleep(2);
+
+    //printf("After registration\n");
+    //print_nmreq(&req);
+
+    mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, MAP_SHARED, *fd, 0);
+
+    if (mem == MAP_FAILED) {
+        perror("mmap failed");
+		return 0;
+    }
+
+    nifp = NETMAP_IF(mem, req.nr_offset);
+    //print_netmap_if(nifp);
+
+	return 1;
+}
+
