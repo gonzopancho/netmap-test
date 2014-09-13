@@ -1,4 +1,4 @@
-PROGS = reader arpd service
+PROGS = reader arp_daemon service
 CLEANFILES = $(PROGS) arp.o ip4.o ethernet.o worker.o dispatcher.o
 NO_MAN=
 CFLAGS += -Werror -Wall -nostdinc -I/usr/include 
@@ -13,7 +13,7 @@ all: $(PROGS)
 
 reader: arp.o ip4.o ethernet.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o $(LDFLAGS)
-arpd: arp.o ip4.o ethernet.o
+arp_daemon: arp.o ip4.o ethernet.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o $(LDFLAGS)
 service: arp.o ip4.o ethernet.o worker.o dispatcher.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o worker.o dispatcher.o $(LDFLAGS)

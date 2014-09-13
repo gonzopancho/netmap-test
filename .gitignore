@@ -1,5 +1,5 @@
 *.o
 *.swp
 reader
-arpd
+arp_daemon
 service
