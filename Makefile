@@ -15,5 +15,5 @@ reader: arp.o ip4.o ethernet.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o $(LDFLAGS)
 arp_daemon: arp.o ip4.o ethernet.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o $(LDFLAGS)
-service: arp.o ip4.o ethernet.o worker.o dispatcher.o
-	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o worker.o dispatcher.o $(LDFLAGS)
+service: arp.o ip4.o ethernet.o worker.o dispatcher.o arpd.o receiver.o
+	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} arp.o ip4.o ethernet.o worker.o dispatcher.o arpd.o receiver.o $(LDFLAGS)

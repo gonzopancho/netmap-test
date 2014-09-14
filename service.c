@@ -17,26 +17,12 @@
 #include "ip4.h"
 #include "worker.h"
 #include "dispatcher.h"
-
+#include "arpd.h"
+#include "receiver.h"
+#include "common.h"
 
 #define NUM_WORKERS 4
 #define NUM_THREADS (NUM_WORKERS + 3)
-
-
-struct if_info {
-	struct ether_addr mac;	/* eg ff:ff:ff:ff:ff:ff */
-	char *ifname;			/* eg em0 */
-	uint32_t mtu;			/* eg 1500 */
-	uint16_t link_type;  	/* eg ARP_HAF_ETHER */
-};
-
-struct inet_info {
-	struct in_addr addr;
-	struct in_addr network;
-	struct in_addr netmask;
-	struct in_addr broadcast;
-	struct in_addr default_route;
-};
 
 
 void print_nmreq(struct nmreq *req);
@@ -56,10 +42,14 @@ int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp);
 int main() {
 	pthread_t threads[NUM_THREADS];
 	struct worker_data workerargs[NUM_WORKERS];
+	struct arp_data arpargs;
+	struct dispatcher_data dispatcherargs;
+	struct receiver_data receiverargs;
 
 	struct netmap_if *nifp = NULL;
 	struct netmap_ring *rxring;
 	struct netmap_ring *txring;
+
 	struct pollfd pfd;
 	struct if_info ifi;
 	struct inet_info ineti;
@@ -113,6 +103,41 @@ int main() {
             exit(-1);
 		}
 	}
+
+	/* initialize arpd */
+	arpargs.thread_id = NUM_WORKERS;
+	printf("main(): creating arpd\n");
+	retval = pthread_create(&threads[arpargs.thread_id], NULL, 
+							arpd, (void *) &arpargs);
+    if (retval) {
+        fprintf(stderr,
+            "ERROR: return code for pthread_create is %d\n", retval);
+        exit(-1);
+    }
+
+	/* initialize dispatcher */
+	dispatcherargs.thread_id = NUM_WORKERS + 1;
+	printf("main(): creating dispatcher thread\n");
+	retval = pthread_create(&threads[dispatcherargs.thread_id], NULL, 
+							dispatcher, (void *) &dispatcherargs);
+    if (retval) {
+        fprintf(stderr,
+            "ERROR: return code for pthread_create is %d\n", retval);
+        exit(-1);
+    }
+
+
+	/* initialize receiver */
+	receiverargs.thread_id = NUM_WORKERS + 2;
+	receiverargs.netmap_fd = fd;
+	printf("main(): creating receiver thread\n");
+    retval = pthread_create(&threads[receiverargs.thread_id], NULL,
+                            receiver, (void *) &receiverargs);
+    if (retval) {
+        fprintf(stderr,
+            "ERROR: return code for pthread_create is %d\n", retval);
+        exit(-1);
+    }
 
 
 	/* main poll loop */

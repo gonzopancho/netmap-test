@@ -7,8 +7,15 @@ int dispatcher_next_receive_queue(struct worker_data *d, int cur) {
     return next_queue == d->current_receive_queue ? cur : next_queue;
 }
 
+void *dispatcher(void *threadargs) {
+	struct dispatcher_data *dispatcher_data = 
+			(struct dispatcher_data *)threadargs;
+	printf("dispatcher(): thread_id %d\n", dispatcher_data->thread_id);
+	pthread_exit(NULL);
+}
+
 #if 0
-void *dispatcher(void *threadarg) {
+void *dispatcher(void *threadargs) {
 	uint32_t i;
 	struct dispatcher_data dispatchers[NUM_WORKERS] = {0};
 
