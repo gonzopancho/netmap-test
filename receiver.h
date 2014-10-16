@@ -3,13 +3,13 @@
 
 #include <pthread.h>
 #include <stdint.h>     // INT32_MAX
-#include <stdlib.h>		// malloc
+#include <stdlib.h>     // malloc
 #include <stdio.h>      // printf
 #include "common.h"
 
 struct receiver_data {
-	int thread_id;
-	int netmap_fd;
+  int thread_id;
+  int netmap_fd;
 };
 
 

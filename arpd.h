@@ -10,7 +10,7 @@
 #include "common.h"
 
 struct arp_data {
-	int thread_id;
+  int thread_id;
 };
 
 void *arpd(void *threadargs);

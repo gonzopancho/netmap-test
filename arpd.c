@@ -1,27 +1,25 @@
 #include "arpd.h"
 
 void *arpd(void *threadargs) {
-	struct arp_data *arp_data = (struct arp_data *)threadargs;
-	printf("arpd(): thread_id: %d\n", arp_data->thread_id);
-	pthread_exit(NULL);
+  struct arp_data *arp_data = (struct arp_data *)threadargs;
+  printf("arpd(): thread_id: %d\n", arp_data->thread_id);
+  pthread_exit(NULL);
 }
-
-
 
 
 #if 0
 void *arpd(void *threadargs) {
-	struct arp_data *arp_data = (struct arp_data *)threadargs;
-	size_t ether_arp_len;
+  struct arp_data *arp_data = (struct arp_data *)threadargs;
+  size_t ether_arp_len;
     struct ethernet_pkt *arp_request_template;
     struct ethernet_pkt *arp_reply_template;
     struct ethernet_pkt *arp_temp;
 
-	/* FIXME: pass these two in threadargs */
-	struct if_info ifi;
+  /* FIXME: pass these two in threadargs */
+  struct if_info ifi;
     struct inet_info ineti;
 
-	ether_arp_len = sizeof(struct ether_header) + sizeof(struct arp_pkt);
+  ether_arp_len = sizeof(struct ether_header) + sizeof(struct arp_pkt);
     if (ether_arp_len < ETHER_MIN_LEN - ETHER_CRC_LEN)
         ether_arp_len = ETHER_MIN_LEN - ETHER_CRC_LEN;
 

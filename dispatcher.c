@@ -1,28 +1,28 @@
 #include "dispatcher.h"
 
 int dispatcher_next_receive_queue(struct worker_data *d, int cur) {
-    int next_queue;
-    next_queue = cur < (d->num_receive_queues - 1) ? (cur + 1) : 0;
+  int next_queue;
+  next_queue = cur < (d->num_receive_queues - 1) ? (cur + 1) : 0;
 
-    return next_queue == d->current_receive_queue ? cur : next_queue;
+  return next_queue == d->current_receive_queue ? cur : next_queue;
 }
 
 void *dispatcher(void *threadargs) {
-	struct dispatcher_data *dispatcher_data = 
-			(struct dispatcher_data *)threadargs;
-	printf("dispatcher(): thread_id %d\n", dispatcher_data->thread_id);
-	pthread_exit(NULL);
+  struct dispatcher_data *dispatcher_data = 
+      (struct dispatcher_data *)threadargs;
+  printf("dispatcher(): thread_id %d\n", dispatcher_data->thread_id);
+  pthread_exit(NULL);
 }
 
 #if 0
 void *dispatcher(void *threadargs) {
-	uint32_t i;
-	struct dispatcher_data dispatchers[NUM_WORKERS] = {0};
+  uint32_t i;
+  struct dispatcher_data dispatchers[NUM_WORKERS] = {0};
 
-	for(i=0; i<NUM_WORKERS; i++) {
-		dispatchers[t].current_receive_queue =
+  for(i=0; i<NUM_WORKERS; i++) {
+    dispatchers[t].current_receive_queue =
             next_receive_queue(&threadargs[t]);
-	}
+  }
 
     while(1) {
         sleep(1);
