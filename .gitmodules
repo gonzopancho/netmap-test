@@ -1,3 +1,5 @@
 [submodule "cqueue"]
 	path = cqueue
 	url = https://github.com/rfujiyama/cqueue.git
+[cqueue "cqueue"]
+	master = master
