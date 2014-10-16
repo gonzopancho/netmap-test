@@ -1,5 +1,5 @@
 PROGS = reader arp_daemon service
-CLEANFILES = $(PROGS) arp.o ip4.o ethernet.o worker.o dispatcher.o cqueue/cqueue.o tqueue.o
+CLEANFILES = $(PROGS) arp.o arpd.o ip4.o dispatcher.o ethernet.o receiver.o worker.o cqueue/cqueue.o tqueue.o
 NO_MAN=
 CFLAGS = -g -O3 -std=c11 -Wall -Werror -Wextra -pipe
 LDFLAGS = -pthread
