@@ -1,0 +1,3 @@
+[submodule "cqueue"]
+	path = cqueue
+	url = https://github.com/rfujiyama/cqueue.git
