@@ -77,7 +77,7 @@ void *producer(void *targ) {
   transaction *t = NULL;
 
   data[10] = args->limit;
-  for (int i=1; i < args->limit; i++) {
+  for (uint64_t i=1; i < args->limit; i++) {
     while ((rv = tqueue_insert(args->q, &t, &data[i%10])) < 1);
     args->passes++;
   }

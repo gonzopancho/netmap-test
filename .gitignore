@@ -3,3 +3,4 @@
 reader
 arp_daemon
 service
+test/tqueue_test_spsc
