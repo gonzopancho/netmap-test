@@ -31,6 +31,13 @@ enum tqueue_retval {
 */
 tqueue *tqueue_new(size_t num_transactions, size_t num_actions);
 
+/*! deallocates the queue
+
+  \param[in,out] p a pointer to the pointer to the queue to be deallocated.
+  On success, *p will be set to NULL.
+*/
+void tqueue_delete(tqueue **p);
+
 /*! insert a pointer into the transaction queue
 
   This function is threadsafe for at most one concurrent invocation of 

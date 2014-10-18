@@ -68,6 +68,19 @@ tqueue *tqueue_new(size_t num_transactions, size_t num_actions) {
   return q;
 }
 
+void tqueue_delete(tqueue **p) {
+  tqueue *q = *p;
+
+  if (!q)
+    return;
+
+  if (q->transactions)
+    cqueue_spsc_delete(&q->transactions);
+
+  free(q);
+  *p = NULL;
+}
+
 int tqueue_insert(tqueue *q, transaction **tp, void *p) {
   assert(q);
 
