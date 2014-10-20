@@ -104,8 +104,9 @@ int tqueue_insert(tqueue *q, transaction **tp, void *p) {
   return TQUEUE_SUCCESS;
 }
 
-void tqueue_publish_transaction(tqueue *q) {
+void tqueue_publish_transaction(tqueue *q, transaction **tp) {
   assert(q);
+  *tp = NULL;
   cqueue_spsc_push_slot_finish(q->transactions);
 }
 

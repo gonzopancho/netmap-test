@@ -83,7 +83,7 @@ void *producer(void *targ) {
   }
 
   while ((rv = tqueue_insert(args->q, &t, &data[10])) < 1);
-  tqueue_publish_transaction(args->q);
+  tqueue_publish_transaction(args->q, &t);
   args->passes++;
 
   while(1);

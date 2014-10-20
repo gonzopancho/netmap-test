@@ -53,7 +53,7 @@ int tqueue_insert(tqueue *q, transaction **tp, void *p);
 
 /*! publish the current insert transaction for reading
 */
-void tqueue_publish_transaction(tqueue *q);
+void tqueue_publish_transaction(tqueue *q, transaction **tp);
 
 /*! remove a pointer from the transaction queue
 
