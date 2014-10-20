@@ -43,12 +43,13 @@ int main() {
   pthread_t threads[NUM_THREADS];
   //struct worker_data workerargs[NUM_WORKERS];
   //struct arp_data arpargs;
-  struct dispatcher_data dispatcherargs;
+  //struct dispatcher_data dispatcherargs;
   struct receiver_data receiverargs;
 
   struct thread_context contexts[NUM_THREADS];
   struct worker_data worker_data[NUM_WORKERS];
   struct arpd_data arpd_data;
+  struct dispatcher_data dispatcher_data;
 
   struct netmap_if *nifp = NULL;
   struct netmap_ring *rxring;
@@ -173,16 +174,31 @@ int main() {
 
 
   /* initialize dispatcher */
-  dispatcherargs.thread_id = NUM_WORKERS + 1;
+  i = NUM_WORKERS + 1;
+  contexts[i].thread_id = i;
+  contexts[i].threadfunc = dispatcher;
+  contexts[i].thread_type = DISPATCHER;
+  contexts[i].data = &dispatcher_data;
+  dispatcher_data.msg_q_capacity = 64;
+  dispatcher_data.msg_q_elem_size = MAX_MSG_SIZE;
+
   printf("main(): creating dispatcher thread\n");
+  retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+                          (void *) &contexts[i]);
+#if 0
+  dispatcherargs.thread_id = NUM_WORKERS + 1;
   retval = pthread_create(&threads[dispatcherargs.thread_id], NULL, 
               dispatcher, (void *) &dispatcherargs);
+#endif
   if (retval) {
     fprintf(stderr,
             "ERROR: return code for pthread_create is %d\n", retval);
     exit(-1);
   }
 
+  /* wait for dispatcher to finish initialization */
+  while (atomic_load_explicit(&contexts[i].initialized,
+          memory_order_acquire) == 0);
 
   /* initialize receiver */
   receiverargs.thread_id = NUM_WORKERS + 2;

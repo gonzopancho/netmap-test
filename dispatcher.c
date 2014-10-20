@@ -1,11 +1,43 @@
 #include "dispatcher.h"
 
-void *dispatcher(void *threadargs) {
-  struct dispatcher_data *dispatcher_data =
-      (struct dispatcher_data *)threadargs;
-  printf("dispatcher(): thread_id %d\n", dispatcher_data->thread_id);
+void *dispatcher(void *threadarg) {
+  assert(threadarg);
+
+  struct thread_context *context;
+  int rv;
+
+  context = (struct thread_context *)threadarg;
+  rv = dispatcher_init(context);
+
+  if (!rv) {
+    pthread_exit(NULL);
+  }
+
+  printf("dispatcher[%d]: initialized\n", context->thread_id);
+  // signal to main() that we are initialized
+  atomic_store_explicit(&context->initialized, 1, memory_order_release);
+
+  // TODO: enter event loop
+
   pthread_exit(NULL);
 }
+
+/*! allocate and initialize queues, etc
+  \param[in, out] context
+  \returns 1 on success, 0 on failure
+*/
+int dispatcher_init(struct thread_context *context) {
+  assert(context);
+
+  struct dispatcher_data *data = context->data;
+
+  context->msg_q = squeue_new(data->msg_q_capacity, data->msg_q_elem_size);
+  if (!context->msg_q)
+    return 0;
+
+  return 1;
+}
+
 
 #if 0
 int dispatcher_next_receive_queue(struct worker_data *d, int cur) {
