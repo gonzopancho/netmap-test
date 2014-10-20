@@ -52,18 +52,18 @@ int main() {
   struct dispatcher_data dispatcher_data;
 
   struct netmap_if *nifp = NULL;
-  struct netmap_ring *rxring;
+  //struct netmap_ring *rxring;
   struct netmap_ring *txring;
 
-  struct pollfd pfd;
+  //struct pollfd pfd;
   struct if_info ifi;
   struct inet_info ineti;
   int fd, retval;
   uint32_t i;
-  char *buf;
+  //char *buf;
   void *mem = NULL;
   char *ifname = "em0";
-  struct ethernet_pkt *etherpkt;
+  //struct ethernet_pkt *etherpkt;
 
   if (!init_if_info(&ifi, "em0")) {
     fprintf(stderr, "if_info_init failed\n");
@@ -84,12 +84,12 @@ int main() {
     exit(1);
   }
 
-  rxring = NETMAP_RXRING(nifp, 0);
+  //rxring = NETMAP_RXRING(nifp, 0);
   txring = NETMAP_TXRING(nifp, 0);
-  print_ring(rxring, 0);
+  //print_ring(rxring, 0);
 
-  pfd.fd = fd;
-  pfd.events = (POLLIN);
+  //pfd.fd = fd;
+  //pfd.events = (POLLIN);
 
   /* generic context initialization */
   for (i=0; i < NUM_THREADS; i++) {
@@ -181,6 +181,9 @@ int main() {
   contexts[i].data = &dispatcher_data;
   dispatcher_data.msg_q_capacity = 64;
   dispatcher_data.msg_q_elem_size = MAX_MSG_SIZE;
+  dispatcher_data.fd = fd;
+  dispatcher_data.nifp = nifp;
+  dispatcher_data.ifi = &ifi;
 
   printf("main(): creating dispatcher thread\n");
   retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
@@ -212,7 +215,7 @@ int main() {
     exit(-1);
   }
 
-
+#if 0
   /* main poll loop */
   for(;;) {
     retval = poll(&pfd, 1, INFTIM);
@@ -232,8 +235,9 @@ int main() {
 
     } // for rxring
   } // for(;;)
+#endif
 
-  for(i=0; i<NUM_THREADS; i++) {
+  for (i=0; i < NUM_THREADS; i++) {
     retval = pthread_join(threads[i], NULL);
     if (retval) {
       fprintf(stderr,

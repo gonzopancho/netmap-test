@@ -5,19 +5,49 @@ void *dispatcher(void *threadarg) {
 
   struct thread_context *context;
   int rv;
+  struct netmap_ring *rxring;
+  struct ethernet_pkt *etherpkt;
+  struct pollfd pfd;
+  struct dispatcher_data *data;
+  uint32_t i;
+  char *buf;
 
   context = (struct thread_context *)threadarg;
+  data = context->data;
   rv = dispatcher_init(context);
 
   if (!rv) {
     pthread_exit(NULL);
   }
 
+  rxring = NETMAP_RXRING(data->nifp, 0);
+  pfd.fd = data->fd;
+  pfd.events = (POLLIN);
+
   printf("dispatcher[%d]: initialized\n", context->thread_id);
   // signal to main() that we are initialized
   atomic_store_explicit(&context->initialized, 1, memory_order_release);
 
   // TODO: enter event loop
+  for (;;) {
+    rv = poll(&pfd, 1, INFTIM);
+    if (rv < 0) {
+      perror("poll failed");
+      continue;
+    }
+    
+    for (; rxring->avail > 0; rxring->avail--) {
+      i = rxring->cur;
+      rxring->cur = NETMAP_RING_NEXT(rxring, i);
+      buf = NETMAP_BUF(rxring, rxring->slot[i].buf_idx);
+      etherpkt = (struct ethernet_pkt *)(void *)buf;
+      if (!ethernet_is_valid(etherpkt, &data->ifi->mac)) {
+        continue;
+      }
+
+    } // for rxring
+
+  } // for(;;)
 
   pthread_exit(NULL);
 }

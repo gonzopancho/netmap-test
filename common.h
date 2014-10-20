@@ -3,6 +3,9 @@
 #include <sys/types.h>      // u_char, required for <net/ethernet.h>
 #include <net/ethernet.h>   // ether_header, ether_ntoa_r
 #include <netinet/in.h>     // IP protos, required for <netinet/ip.h>
+#include <net/if.h>         // IFNAMSIZ, required for <net/netmap.h>
+#include <net/netmap.h>
+#include <net/netmap_user.h>
 #include "tqueue.h"
 #include "squeue/squeue.h"
 
