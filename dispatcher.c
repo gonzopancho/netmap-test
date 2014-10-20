@@ -4,7 +4,7 @@ void *dispatcher(void *threadarg) {
   assert(threadarg);
 
   struct thread_context *context;
-  int rv;
+  int rv, arpd_idx = 0;
   struct netmap_ring *rxring;
   struct ethernet_pkt *etherpkt;
   struct pollfd pfd;
@@ -13,6 +13,10 @@ void *dispatcher(void *threadarg) {
   char *buf;
 
   context = (struct thread_context *)threadarg;
+
+  struct transaction *transactions[context->num_threads];
+  uint64_t dropped[context->num_threads];
+
   data = context->data;
   rv = dispatcher_init(context);
 
@@ -24,11 +28,17 @@ void *dispatcher(void *threadarg) {
   pfd.fd = data->fd;
   pfd.events = (POLLIN);
 
+  for (i=0; i < context->num_threads; i++) {
+    transactions[i] = NULL;
+    dropped[i] = 0;
+    if (context->contexts[i].thread_type == ARPD)
+      arpd_idx = i;
+  }
+
   printf("dispatcher[%d]: initialized\n", context->thread_id);
   // signal to main() that we are initialized
   atomic_store_explicit(&context->initialized, 1, memory_order_release);
 
-  // TODO: enter event loop
   for (;;) {
     rv = poll(&pfd, 1, INFTIM);
     if (rv < 0) {
@@ -41,12 +51,39 @@ void *dispatcher(void *threadarg) {
       rxring->cur = NETMAP_RING_NEXT(rxring, i);
       buf = NETMAP_BUF(rxring, rxring->slot[i].buf_idx);
       etherpkt = (struct ethernet_pkt *)(void *)buf;
-      if (!ethernet_is_valid(etherpkt, &data->ifi->mac)) {
-        continue;
-      }
 
+      // TODO: consider pushing this check to the workers
+      if (!ethernet_is_valid(etherpkt, &data->ifi->mac))
+        continue;
+
+      switch (etherpkt->h.ether_type) {
+        case IP4_ETHERTYPE:
+          rv = tqueue_insert(context->contexts[0].pkt_recv_q,
+                             &transactions[0], buf);
+
+          if (rv == TQUEUE_FULL) // just drop packet and do accounting
+            dropped[0]++;
+
+          break;
+        case ARP_ETHERTYPE:
+          rv = tqueue_insert(context->contexts[arpd_idx].pkt_recv_q,
+                             &transactions[arpd_idx], buf);
+
+          if (rv == TQUEUE_SUCCESS) // don't batch arp pkts for processing
+            tqueue_publish_transaction(context->contexts[0].pkt_recv_q,
+                                        &transactions[arpd_idx]);
+
+          if (rv == TQUEUE_FULL) // just drop packet and do accounting
+            dropped[arpd_idx]++;
+
+          break;
+        default:
+          printf("dispatcher[%d]: unknown/unsupported ethertype %hu\n",
+                  context->thread_id, etherpkt->h.ether_type);
+      }
     } // for rxring
 
+    // TODO: read msg_q
   } // for(;;)
 
   pthread_exit(NULL);

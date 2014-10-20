@@ -38,7 +38,7 @@ struct thread_context {
   pthread_t thread;
   int thread_id;
   int thread_type;
-  int num_threads;
+  uint32_t num_threads;
   struct thread_context *contexts;
   tqueue *pkt_xmit_q;
   tqueue *pkt_recv_q;
