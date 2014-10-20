@@ -42,12 +42,13 @@ int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp);
 int main() {
   pthread_t threads[NUM_THREADS];
   //struct worker_data workerargs[NUM_WORKERS];
-  struct arp_data arpargs;
+  //struct arp_data arpargs;
   struct dispatcher_data dispatcherargs;
   struct receiver_data receiverargs;
 
   struct thread_context contexts[NUM_THREADS];
   struct worker_data worker_data[NUM_WORKERS];
+  struct arpd_data arpd_data;
 
   struct netmap_if *nifp = NULL;
   struct netmap_ring *rxring;
@@ -101,7 +102,7 @@ int main() {
   }
 
   /* initialize workers */
-  for(i=0; i<NUM_WORKERS; i++) {
+  for (i=0; i < NUM_WORKERS; i++) {
     contexts[i].thread_id = i;
     contexts[i].threadfunc = worker;
     contexts[i].thread_type = WORKER;
@@ -132,22 +133,44 @@ int main() {
     }
   }
 
-  // wait for all workers to finish their initialization
+  /* wait for all workers to finish their initialization */
   for (i=0; i < NUM_WORKERS; i++) {
     while (atomic_load_explicit(&contexts[i].initialized, 
                 memory_order_acquire) == 0);
   }
 
   /* initialize arpd */
-  arpargs.thread_id = NUM_WORKERS;
+  i = NUM_WORKERS;
+  contexts[i].thread_id = i;
+  contexts[i].threadfunc = arpd;
+  contexts[i].thread_type = ARPD;
+  contexts[i].data = &arpd_data;
+  arpd_data.msg_q_capacity = 64;
+  arpd_data.msg_q_elem_size = MAX_MSG_SIZE;
+  arpd_data.xmit_q_transactions = 32;
+  arpd_data.xmit_q_actions_per_transaction = 32;
+  arpd_data.recv_q_transactions = 32;
+  arpd_data.recv_q_actions_per_transaction = 32;
+
   printf("main(): creating arpd\n");
+  retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+                          (void *) &contexts[i]);
+#if 0
+  arpargs.thread_id = NUM_WORKERS;
   retval = pthread_create(&threads[arpargs.thread_id], NULL, 
               arpd, (void *) &arpargs);
+#endif
+
   if (retval) {
     fprintf(stderr,
             "ERROR: return code for pthread_create is %d\n", retval);
     exit(-1);
   }
+
+  /* wait for arpd to finish initialization */
+  while (atomic_load_explicit(&contexts[i].initialized,
+          memory_order_acquire) == 0);
+
 
   /* initialize dispatcher */
   dispatcherargs.thread_id = NUM_WORKERS + 1;

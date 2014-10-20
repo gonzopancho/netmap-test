@@ -125,6 +125,10 @@ void *worker(void *threadarg) {
     pthread_exit(NULL);
   }
 
+  printf("worker[%d]: initialized\n", context->thread_id);
+  // signal to main() that we are initialized
+  atomic_store_explicit(&context->initialized, 1, memory_order_release);
+
   // TODO: enter event loop
 
   pthread_exit(NULL);
@@ -159,6 +163,5 @@ int worker_init(struct thread_context *context) {
     return 0;
   }
 
-  atomic_store_explicit(&context->initialized, 1, memory_order_release);
   return 1;
 }
