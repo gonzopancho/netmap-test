@@ -3,3 +3,7 @@
 	url = https://github.com/rfujiyama/cqueue.git
 [cqueue "cqueue"]
 	master = master
+[submodule "squeue"]
+	path = squeue
+	url = https://github.com/rfujiyama/squeue.git
+	branch = master
