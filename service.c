@@ -7,22 +7,18 @@
 #include <fcntl.h>      // open
 #include <stdio.h>      // fprintf, perror
 #include <string.h>     // strcpy
-#include <poll.h>
 #include <unistd.h>     // sleep, close
 #include <stdlib.h>     // exit
 #include <ifaddrs.h>    // getifaddrs
 #include <net/if_dl.h>  // sockaddr_dl
 #include <pthread.h>
-#include "ethernet.h"
-#include "ip4.h"
 #include "worker.h"
 #include "dispatcher.h"
 #include "arpd.h"
-#include "receiver.h"
 #include "common.h"
 
 #define NUM_WORKERS 4
-#define NUM_THREADS (NUM_WORKERS + 3)
+#define NUM_THREADS (NUM_WORKERS + 2)
 
 
 void print_nmreq(struct nmreq *req);
@@ -41,10 +37,6 @@ int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp);
 
 int main() {
   pthread_t threads[NUM_THREADS];
-  //struct worker_data workerargs[NUM_WORKERS];
-  //struct arp_data arpargs;
-  //struct dispatcher_data dispatcherargs;
-  struct receiver_data receiverargs;
 
   struct thread_context contexts[NUM_THREADS];
   struct worker_data worker_data[NUM_WORKERS];
@@ -52,18 +44,14 @@ int main() {
   struct dispatcher_data dispatcher_data;
 
   struct netmap_if *nifp = NULL;
-  //struct netmap_ring *rxring;
   struct netmap_ring *txring;
 
-  //struct pollfd pfd;
   struct if_info ifi;
   struct inet_info ineti;
   int fd, retval;
   uint32_t i;
-  //char *buf;
   void *mem = NULL;
   char *ifname = "em0";
-  //struct ethernet_pkt *etherpkt;
 
   if (!init_if_info(&ifi, "em0")) {
     fprintf(stderr, "if_info_init failed\n");
@@ -72,7 +60,8 @@ int main() {
 
   print_if_info(&ifi);
 
-  if (!init_inet_info(&ineti, "192.168.37.111", "255.255.255.0", "192.168.37.1")) {
+  if (!init_inet_info(&ineti, "192.168.37.111", 
+                      "255.255.255.0", "192.168.37.1")) {
     fprintf(stderr, "init_inet_info failed\n");
     exit(1);
   } 
@@ -84,12 +73,7 @@ int main() {
     exit(1);
   }
 
-  //rxring = NETMAP_RXRING(nifp, 0);
   txring = NETMAP_TXRING(nifp, 0);
-  //print_ring(rxring, 0);
-
-  //pfd.fd = fd;
-  //pfd.events = (POLLIN);
 
   /* generic context initialization */
   for (i=0; i < NUM_THREADS; i++) {
@@ -117,20 +101,9 @@ int main() {
     printf("main(): creating worker %d\n", i);
     retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
                             (void *) &contexts[i]);
-#if 0 
-    workerargs[i].thread_id = i;
-    if (!initialize_worker_data(&workerargs[i], 8, 16)) {
-            fprintf(stderr, "failed to initialize workerargs[%d]\n", i);
-            exit(-1);
-    }
-    printf("main(): creating worker %d\n", i);
-    retval = pthread_create(&threads[i], NULL, worker,
-                            (void *) &workerargs[i]);
-#endif
     if (retval) {
-            fprintf(stderr,
-                "ERROR: return code for pthread_create is %d\n", retval);
-            exit(-1);
+      fprintf(stderr,"ERROR: return code for pthread_create is %d\n", retval);
+      exit(-1);
     }
   }
 
@@ -156,22 +129,14 @@ int main() {
   printf("main(): creating arpd\n");
   retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
                           (void *) &contexts[i]);
-#if 0
-  arpargs.thread_id = NUM_WORKERS;
-  retval = pthread_create(&threads[arpargs.thread_id], NULL, 
-              arpd, (void *) &arpargs);
-#endif
-
   if (retval) {
-    fprintf(stderr,
-            "ERROR: return code for pthread_create is %d\n", retval);
+    fprintf(stderr, "ERROR: return code for pthread_create is %d\n", retval);
     exit(-1);
   }
 
   /* wait for arpd to finish initialization */
   while (atomic_load_explicit(&contexts[i].initialized,
           memory_order_acquire) == 0);
-
 
   /* initialize dispatcher */
   i = NUM_WORKERS + 1;
@@ -188,14 +153,8 @@ int main() {
   printf("main(): creating dispatcher thread\n");
   retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
                           (void *) &contexts[i]);
-#if 0
-  dispatcherargs.thread_id = NUM_WORKERS + 1;
-  retval = pthread_create(&threads[dispatcherargs.thread_id], NULL, 
-              dispatcher, (void *) &dispatcherargs);
-#endif
   if (retval) {
-    fprintf(stderr,
-            "ERROR: return code for pthread_create is %d\n", retval);
+    fprintf(stderr, "ERROR: return code for pthread_create is %d\n", retval);
     exit(-1);
   }
 
@@ -203,40 +162,7 @@ int main() {
   while (atomic_load_explicit(&contexts[i].initialized,
           memory_order_acquire) == 0);
 
-  /* initialize receiver */
-  receiverargs.thread_id = NUM_WORKERS + 2;
-  receiverargs.netmap_fd = fd;
-  printf("main(): creating receiver thread\n");
-  retval = pthread_create(&threads[receiverargs.thread_id], NULL,
-                          receiver, (void *) &receiverargs);
-  if (retval) {
-    fprintf(stderr,
-            "ERROR: return code for pthread_create is %d\n", retval);
-    exit(-1);
-  }
-
-#if 0
-  /* main poll loop */
-  for(;;) {
-    retval = poll(&pfd, 1, INFTIM);
-    if (retval < 0) {
-      perror("poll failed");
-      continue;
-    }
-
-    for (; rxring->avail > 0; rxring->avail--) {
-      i = rxring->cur;
-      rxring->cur = NETMAP_RING_NEXT(rxring, i);
-      buf = NETMAP_BUF(rxring, rxring->slot[i].buf_idx);
-      etherpkt = (struct ethernet_pkt *)(void *)buf;
-      if (!ethernet_is_valid(etherpkt, &ifi.mac)) {
-        continue;
-      }
-
-    } // for rxring
-  } // for(;;)
-#endif
-
+  /* wait for all threads to exit */
   for (i=0; i < NUM_THREADS; i++) {
     retval = pthread_join(threads[i], NULL);
     if (retval) {
