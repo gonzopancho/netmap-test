@@ -10,7 +10,7 @@
 #include <stdlib.h>     // malloc
 #include <assert.h>
 #include <stdatomic.h>  // atomics
-#include "cqueue.h"
+#include "cqueue/cqueue.h"
 
 typedef struct tqueue tqueue;
 typedef struct transaction transaction;

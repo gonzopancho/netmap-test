@@ -16,9 +16,9 @@ arp_daemon: arp.o ip4.o ethernet.o
 service: arp.o ip4.o ethernet.o worker.o dispatcher.o arpd.o receiver.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} ${.ALLSRC} $(LDFLAGS)
 tqueue.o: tqueue.c cqueue/cqueue.o
-	$(CC) $(CFLAGS) -Icqueue -c tqueue.c -o tqueue.o
+	$(CC) $(CFLAGS) -c tqueue.c -o tqueue.o
 tqueue_test_spsc: tqueue.o cqueue.o
-	$(CC) $(CFLAGS) -Icqueue -I. -o test/${.TARGET} test/${.TARGET:=.c} ${.ALLSRC} $(LDFLAGS)
+	$(CC) $(CFLAGS) -I. -o test/${.TARGET} test/${.TARGET:=.c} ${.ALLSRC} $(LDFLAGS)
 clean:
 	rm -f $(CLEANFILES)
 	cd test; rm -rf $(TESTS)
