@@ -41,10 +41,13 @@ int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp);
 
 int main() {
   pthread_t threads[NUM_THREADS];
-  struct worker_data workerargs[NUM_WORKERS];
+  //struct worker_data workerargs[NUM_WORKERS];
   struct arp_data arpargs;
   struct dispatcher_data dispatcherargs;
   struct receiver_data receiverargs;
+
+  struct thread_context contexts[NUM_THREADS];
+  struct worker_data worker_data[NUM_WORKERS];
 
   struct netmap_if *nifp = NULL;
   struct netmap_ring *rxring;
@@ -86,9 +89,33 @@ int main() {
   pfd.fd = fd;
   pfd.events = (POLLIN);
 
+  /* generic context initialization */
+  for (i=0; i < NUM_THREADS; i++) {
+    contexts[i].num_threads = NUM_THREADS;
+    contexts[i].contexts = contexts;
+    contexts[i].pkt_xmit_q = NULL;
+    contexts[i].pkt_recv_q = NULL;
+    contexts[i].msg_q = NULL;
+    contexts[i].data = NULL;
+    contexts[i].initialized = ATOMIC_VAR_INIT(0);
+  }
 
   /* initialize workers */
   for(i=0; i<NUM_WORKERS; i++) {
+    contexts[i].thread_id = i;
+    contexts[i].threadfunc = worker;
+    contexts[i].thread_type = WORKER;
+    contexts[i].data = &worker_data[i];
+    worker_data[i].msg_q_capacity = 64;
+    worker_data[i].msg_q_elem_size = MAX_MSG_SIZE;
+    worker_data[i].xmit_q_transactions = 32;
+    worker_data[i].xmit_q_actions_per_transaction = 32;
+    worker_data[i].recv_q_transactions = 32;
+    worker_data[i].recv_q_actions_per_transaction = 32;
+    printf("main(): creating worker %d\n", i);
+    retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+                            (void *) &contexts[i]);
+#if 0 
     workerargs[i].thread_id = i;
     if (!initialize_worker_data(&workerargs[i], 8, 16)) {
             fprintf(stderr, "failed to initialize workerargs[%d]\n", i);
@@ -97,11 +124,18 @@ int main() {
     printf("main(): creating worker %d\n", i);
     retval = pthread_create(&threads[i], NULL, worker,
                             (void *) &workerargs[i]);
+#endif
     if (retval) {
             fprintf(stderr,
                 "ERROR: return code for pthread_create is %d\n", retval);
             exit(-1);
     }
+  }
+
+  // wait for all workers to finish their initialization
+  for (i=0; i < NUM_WORKERS; i++) {
+    while (atomic_load_explicit(&contexts[i].initialized, 
+                memory_order_acquire) == 0);
   }
 
   /* initialize arpd */

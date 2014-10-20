@@ -17,8 +17,6 @@ struct worker_stats {
   int current_receive_queue;
 };
 
-int dispatcher_next_receive_queue(struct worker_data *d, int cur);
 void *dispatcher(void *threadarg);
-
 
 #endif

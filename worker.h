@@ -5,8 +5,10 @@
 #include <stdint.h>     // INT32_MAX
 #include <stdlib.h>     // malloc
 #include <stdio.h>      // printf
+#include <assert.h>     // assert
+#include "common.h"
 
-
+#if 0
 struct receive_queue {
   int num_entries;
   int max_entries;
@@ -32,5 +34,19 @@ int initialize_worker_data(struct worker_data *data,
                             int max_receive_entries);
 int worker_data_next_receive_queue(struct worker_data *d);
 void *worker(void *threadarg);
+#endif
+
+
+struct worker_data {
+  int msg_q_capacity;
+  int msg_q_elem_size;
+  int xmit_q_transactions;
+  int xmit_q_actions_per_transaction;
+  int recv_q_transactions;
+  int recv_q_actions_per_transaction;
+};
+
+void *worker(void *threadarg);
+int worker_init(struct thread_context *context);
 
 #endif
