@@ -12,10 +12,10 @@
 #include <ifaddrs.h>    // getifaddrs
 #include <net/if_dl.h>  // sockaddr_dl
 #include <pthread.h>
+#include "common.h"
 #include "worker.h"
 #include "dispatcher.h"
 #include "arpd.h"
-#include "common.h"
 
 #define NUM_WORKERS 4
 #define NUM_THREADS (NUM_WORKERS + 2)
@@ -121,10 +121,12 @@ int main() {
   contexts[i].data = &arpd_data;
   arpd_data.msg_q_capacity = 64;
   arpd_data.msg_q_elem_size = MAX_MSG_SIZE;
-  arpd_data.xmit_q_transactions = 32;
-  arpd_data.xmit_q_actions_per_transaction = 32;
-  arpd_data.recv_q_transactions = 32;
-  arpd_data.recv_q_actions_per_transaction = 32;
+  arpd_data.xmit_q_transactions = 64;
+  arpd_data.xmit_q_actions_per_transaction = 1;
+  arpd_data.recv_q_transactions = 64;
+  arpd_data.recv_q_actions_per_transaction = 1;
+  arpd_data.mac = &ifi.mac;
+  arpd_data.addr = &ineti.addr;
 
   printf("main(): creating arpd\n");
   retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
