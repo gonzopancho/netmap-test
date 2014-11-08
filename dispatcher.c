@@ -9,6 +9,7 @@ void *dispatcher(void *threadarg) {
   struct ethernet_pkt *etherpkt;
   struct pollfd pfd;
   struct dispatcher_data *data;
+  uint32_t *slots_used;
   uint32_t i;
   char *buf;
 
@@ -25,6 +26,10 @@ void *dispatcher(void *threadarg) {
   }
 
   rxring = NETMAP_RXRING(data->nifp, 0);
+  slots_used = bitmap_new(rxring->num_slots);
+  if (!slots_used)
+    exit(1);
+
   pfd.fd = data->fd;
   pfd.events = (POLLIN);
 
@@ -56,25 +61,35 @@ void *dispatcher(void *threadarg) {
       if (!ethernet_is_valid(etherpkt, &data->ifi->mac))
         continue;
 
+      // TODO: dispatch to n workers instead of just 0
       switch (etherpkt->h.ether_type) {
         case IP4_ETHERTYPE:
           rv = tqueue_insert(context->contexts[0].pkt_recv_q,
                              &transactions[0], buf);
 
-          if (rv == TQUEUE_FULL) // just drop packet and do accounting
+          if (rv == TQUEUE_FULL) { 
+            // just drop packet and do accounting
             dropped[0]++;
+          } else {
+            bitmap_set(slots_used, i);
+          }
 
           break;
         case ARP_ETHERTYPE:
           rv = tqueue_insert(context->contexts[arpd_idx].pkt_recv_q,
                              &transactions[arpd_idx], buf);
 
-          if (rv == TQUEUE_SUCCESS) // don't batch arp pkts for processing
-            tqueue_publish_transaction(context->contexts[0].pkt_recv_q,
-                                        &transactions[arpd_idx]);
-
-          if (rv == TQUEUE_FULL) // just drop packet and do accounting
+          if (rv == TQUEUE_FULL) {
+            // just drop packet and do accounting
             dropped[arpd_idx]++;
+          } else {
+            if (rv == TQUEUE_SUCCESS) {
+              // don't batch arp pkts for processing
+              tqueue_publish_transaction(context->contexts[arpd_idx].pkt_recv_q,
+                                          &transactions[arpd_idx]);
+            }
+            bitmap_set(slots_used, i);
+          }
 
           break;
         default:
