@@ -33,7 +33,7 @@ void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
 void print_inet_info(struct inet_info *ineti);
 int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, uint16_t pktlen);
-int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp);
+int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp);
 
 int main() {
   pthread_t threads[NUM_THREADS];
@@ -44,7 +44,7 @@ int main() {
   struct dispatcher_data dispatcher_data;
 
   struct netmap_if *nifp = NULL;
-  struct netmap_ring *txring;
+  struct netmap_ring *rxring, *txring;
 
   struct if_info ifi;
   struct inet_info ineti;
@@ -68,11 +68,12 @@ int main() {
 
   print_inet_info(&ineti);
 
-  if (!init_netmap(&fd, ifname, mem, nifp)) {
+  if (!init_netmap(&fd, ifname, &mem, &nifp)) {
     fprintf(stderr, "init_netmap failed\n");
     exit(1);
   }
 
+  rxring = NETMAP_RXRING(nifp, 0);
   txring = NETMAP_TXRING(nifp, 0);
 
   /* generic context initialization */
@@ -127,6 +128,7 @@ int main() {
   arpd_data.recv_q_actions_per_transaction = 1;
   arpd_data.mac = &ifi.mac;
   arpd_data.addr = &ineti.addr;
+  arpd_data.rxring = rxring;
 
   printf("main(): creating arpd\n");
   retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
@@ -354,7 +356,7 @@ int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt,
 }
 
 
-int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp) {
+int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp) {
   struct nmreq req;
   int retval;
 
@@ -382,15 +384,15 @@ int init_netmap(int *fd, char *ifname, void *mem, struct netmap_if *nifp) {
   //printf("After registration\n");
   //print_nmreq(&req);
 
-  mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, MAP_SHARED, *fd, 0);
+  *mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, MAP_SHARED, *fd, 0);
 
-  if (mem == MAP_FAILED) {
+  if (*mem == MAP_FAILED) {
     perror("mmap failed");
     return 0;
   }
 
-  nifp = NETMAP_IF(mem, req.nr_offset);
-  //print_netmap_if(nifp);
+  *nifp = NETMAP_IF(*mem, req.nr_offset);
+  //print_netmap_if(*nifp);
 
   return 1;
 }
