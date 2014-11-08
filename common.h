@@ -8,6 +8,8 @@
 #include <net/netmap_user.h>
 #include "tqueue.h"
 #include "squeue/squeue.h"
+#include "bitmap.h"
+
 
 #define MAX_MSG_SIZE 1024
 
