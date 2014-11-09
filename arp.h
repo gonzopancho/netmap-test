@@ -41,7 +41,6 @@ struct arp_pkt {
 } __attribute__((__packed__));
 
 int arp_is_valid(struct arp_pkt *arp);
-void arp_receive_handler(struct arp_pkt *arp, struct in_addr *my_ip);
 int arp_reply_filter (struct arp_pkt *arp, struct in_addr *my_ip);
 void arp_print(struct arp_pkt *arp);
 void arp_create_request_template(struct ethernet_pkt *pkt, 

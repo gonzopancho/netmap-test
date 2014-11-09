@@ -15,24 +15,6 @@ int arp_is_valid(struct arp_pkt *arp) {
   return 1;   
 }
 
-void arp_receive_handler(struct arp_pkt *arp, struct in_addr *my_ip) {
-  switch(arp->arp_h.ar_op) {
-    case ARP_OP_REQUEST:
-      if(arp->tpa.s_addr == my_ip->s_addr) {
-        // send a reply for this request
-      } 
-      break;
-    case ARP_OP_REPLY:
-      if (!arp_reply_filter(arp, my_ip)) {
-        // check if replying for an IP that I want
-        // then add to arp cache
-      }
-      break;
-    default:
-      break;
-  }
-}
-
 int arp_reply_filter (struct arp_pkt *arp, struct in_addr *my_ip) {
   if (arp->tpa.s_addr != my_ip->s_addr)
     return 0;
