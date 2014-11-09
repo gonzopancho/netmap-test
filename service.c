@@ -36,8 +36,6 @@ int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, uint16_
 int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp);
 
 int main() {
-  pthread_t threads[NUM_THREADS];
-
   struct thread_context contexts[NUM_THREADS];
   struct worker_data worker_data[NUM_WORKERS];
   struct arpd_data arpd_data;
@@ -167,11 +165,11 @@ int main() {
           memory_order_acquire) == 0);
 
   /* wait for all threads to exit */
+  sleep(5);
   for (i=0; i < NUM_THREADS; i++) {
-    retval = pthread_join(threads[i], NULL);
+    retval = pthread_join(contexts[i].thread, NULL);
     if (retval) {
-      fprintf(stderr,
-              "ERROR: return code for pthread_join is %d\n", retval);
+      fprintf(stderr, "ERROR: pthread_join[%d] returned %d \n", i, retval);
       exit(-2);
     }
   }
@@ -212,6 +210,7 @@ void print_ring(struct netmap_ring *ring, uint32_t ridx) {
   printf("avail: %u\n", ring->avail);
   printf("cur: %u\n", ring->cur);
   printf("reserved: %u\n", ring->reserved);
+  printf("nr_buf_size: %hu\n", ring->nr_buf_size);
   printf("flags: %hu\n", ring->flags);
   /* printf("ts: unknown\n"); */
 }
