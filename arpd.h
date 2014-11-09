@@ -10,12 +10,6 @@
 #include "arp.h"
 #include "common.h"
 
-#if 0
-struct arp_data {
-  int thread_id;
-};
-#endif
-
 struct arpd_data {
   int msg_q_capacity;
   int msg_q_elem_size;
