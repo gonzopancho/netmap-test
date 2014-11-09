@@ -130,6 +130,9 @@ void *worker(void *threadarg) {
   atomic_store_explicit(&context->initialized, 1, memory_order_release);
 
   // TODO: enter event loop
+  for (;;) {
+    sleep(60);
+  }
 
   pthread_exit(NULL);
 }
