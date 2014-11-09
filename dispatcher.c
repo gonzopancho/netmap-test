@@ -64,8 +64,9 @@ void *dispatcher(void *threadarg) {
       // TODO: dispatch to n workers instead of just 0
       switch (etherpkt->h.ether_type) {
         case IP4_ETHERTYPE:
+/*
           rv = tqueue_insert(context->contexts[0].pkt_recv_q,
-                             &transactions[0], buf);
+                             &transactions[0], (char *) NULL + i);
 
           if (rv == TQUEUE_FULL) { 
             // just drop packet and do accounting
@@ -73,12 +74,11 @@ void *dispatcher(void *threadarg) {
           } else {
             bitmap_set(slots_used, i);
           }
-
+*/
           break;
         case ARP_ETHERTYPE:
           rv = tqueue_insert(context->contexts[arpd_idx].pkt_recv_q,
-                             &transactions[arpd_idx], buf);
-
+                             &transactions[arpd_idx], (char *) NULL + i);
           if (rv == TQUEUE_FULL) {
             // just drop packet and do accounting
             dropped[arpd_idx]++;
@@ -90,7 +90,6 @@ void *dispatcher(void *threadarg) {
             }
             bitmap_set(slots_used, i);
           }
-
           break;
         default:
           printf("dispatcher[%d]: unknown/unsupported ethertype %hu\n",
