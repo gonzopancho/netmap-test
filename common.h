@@ -11,8 +11,6 @@
 #include "bitmap.h"
 
 
-#define MAX_MSG_SIZE 1024
-
 typedef enum {
   WORKER,
   ARPD,

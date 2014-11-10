@@ -16,6 +16,7 @@
 #include "worker.h"
 #include "dispatcher.h"
 #include "arpd.h"
+#include "message.h"
 
 #define NUM_WORKERS 4
 #define NUM_THREADS (NUM_WORKERS + 2)
@@ -91,8 +92,8 @@ int main() {
     contexts[i].threadfunc = worker;
     contexts[i].thread_type = WORKER;
     contexts[i].data = &worker_data[i];
-    worker_data[i].msg_q_capacity = 64;
-    worker_data[i].msg_q_elem_size = MAX_MSG_SIZE;
+    worker_data[i].msg_q_capacity = 256;
+    worker_data[i].msg_q_elem_size = MSG_BLOCKSIZE;
     worker_data[i].xmit_q_transactions = 32;
     worker_data[i].xmit_q_actions_per_transaction = 32;
     worker_data[i].recv_q_transactions = 32;
@@ -118,8 +119,8 @@ int main() {
   contexts[i].threadfunc = arpd;
   contexts[i].thread_type = ARPD;
   contexts[i].data = &arpd_data;
-  arpd_data.msg_q_capacity = 64;
-  arpd_data.msg_q_elem_size = MAX_MSG_SIZE;
+  arpd_data.msg_q_capacity = 256;
+  arpd_data.msg_q_elem_size = MSG_BLOCKSIZE;
   arpd_data.xmit_q_transactions = 64;
   arpd_data.xmit_q_actions_per_transaction = 1;
   arpd_data.recv_q_transactions = 64;
@@ -146,8 +147,8 @@ int main() {
   contexts[i].threadfunc = dispatcher;
   contexts[i].thread_type = DISPATCHER;
   contexts[i].data = &dispatcher_data;
-  dispatcher_data.msg_q_capacity = 64;
-  dispatcher_data.msg_q_elem_size = MAX_MSG_SIZE;
+  dispatcher_data.msg_q_capacity = 1024;
+  dispatcher_data.msg_q_elem_size = MSG_BLOCKSIZE;
   dispatcher_data.fd = fd;
   dispatcher_data.nifp = nifp;
   dispatcher_data.ifi = &ifi;
