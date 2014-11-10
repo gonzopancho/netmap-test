@@ -1,15 +1,12 @@
 #include "message.h"
 
 int send_transaction_update_single(struct thread_context *context, 
-                                    uint64_t ring_idx) {
+                                    uint32_t ring_idx) {
   assert(context);
   assert(context->msg_q);
 
   struct msg_transaction_update_single *msg;
-  msg = squeue_trypush_slot(context->msg_q);
-  if (!msg)
-    return 0;
-
+  msg = squeue_push_slot(context->msg_q);
   msg->header.msg_type = MSG_TRANSACTION_UPDATE_SINGLE;
   msg->header.msg_group = MSG_GROUP_GENERAL;
   msg->header.num_blocks = 1;
@@ -34,7 +31,7 @@ int send_transaction_update(struct thread_context *context, uint32_t *bitmap,
   num_blocks = (BITMAP_BLOCKS(nbits) + bitmap_blocks_per_data_block - 1) / bitmap_blocks_per_data_block; 
   num_blocks++;
 
-  if (!squeue_enter(q, 0))
+  if (!squeue_enter(q, 1))
     return 0;
 
   if (num_blocks > q->capacity - q->elem_count) {

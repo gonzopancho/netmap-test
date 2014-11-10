@@ -27,8 +27,8 @@ struct msg_hdr {
 
 struct msg_transaction_update_single {
   struct msg_hdr header;
-  uint16_t pad; 
-  uint64_t ring_idx;
+  uint16_t pad[3]; 
+  uint32_t ring_idx;
 } __attribute__((__packed__));
 
 struct msg_transaction_update {
@@ -44,7 +44,7 @@ struct msg_transaction_update_data {
 // assumes the squeue is locked
 // returns 1 on success, 0 on fail
 int send_transaction_update_single(struct thread_context *context, 
-                                    uint64_t ring_idx);
+                                    uint32_t ring_idx);
 int send_transaction_update(struct thread_context *context, uint32_t *bitmap, 
                             size_t nbits);
 #endif
