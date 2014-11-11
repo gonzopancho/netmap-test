@@ -12,7 +12,7 @@ int main() {
   uint32_t *bitmap;
   uint32_t *mask;
 
-  len = 256;
+  len = 64;
   bitmap = bitmap_new(len);
   assert(bitmap);
 
@@ -22,8 +22,10 @@ int main() {
   for (i=0; i < len; i++)
     assert(bitmap_get(bitmap, i) == 0);
 
-  for (i=0; i < len; i++)
+  for (i=0; i < len; i++) {
     bitmap_set(bitmap, i);
+    bitmap_print(bitmap, len);
+  }
 
   for (i=0; i*32 < len; i++)
     assert(bitmap[i] == UINT32_MAX);
