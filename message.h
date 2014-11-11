@@ -9,19 +9,19 @@
 
 #define MSG_BLOCKSIZE 16
 
-typedef enum {
-  MSG_GROUP_GENERAL = 0x01
-} msg_group;
+enum msg_group {
+  MSG_GROUP_GENERAL
+};
 
-typedef enum {
-  MSG_TRANSACTION_UPDATE_SINGLE = 0x01,
-  MSG_TRANSACTION_UPDATE        = 0x02,
-  MSG_TRANSACTION_UPDATE_DATA   = 0x03
-} msg_type;
+enum msg_type {
+  MSG_TRANSACTION_UPDATE_SINGLE,
+  MSG_TRANSACTION_UPDATE,
+  MSG_TRANSACTION_UPDATE_DATA
+};
 
 struct msg_hdr {
-  msg_type msg_type;
-  msg_group msg_group;
+  uint16_t msg_type;
+  uint16_t msg_group;
   uint16_t num_blocks;
 } __attribute__((__packed__));
 

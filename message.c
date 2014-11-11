@@ -11,8 +11,8 @@ int send_transaction_update_single(struct thread_context *context,
   msg->header.msg_group = MSG_GROUP_GENERAL;
   msg->header.num_blocks = 1;
   msg->ring_idx = ring_idx;
-
   squeue_exit(context->msg_q);
+
   return 1;
 }
 
