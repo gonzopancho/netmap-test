@@ -2,9 +2,10 @@
 #define _BITMAP_
 
 #include <stdint.h>   // uint32_t
-#include <stddef.h>   // size_t
+#include <unistd.h>   // size_t
 #include <stdlib.h>   // calloc
 #include <limits.h>   // CHAR_BIT
+#include <stdio.h>    // printf
 
 #define BITMAP_BLOCKSIZE 32 // using uint32_t, which guarantees 32 bits
 
@@ -65,5 +66,7 @@ inline void bitmap_clearmask(uint32_t *bitmap, size_t map_bits,
   for (i=0; i < limit; i++)
     bitmap[i] &= ~mask[i];
 }
+
+void bitmap_print(uint32_t *bitmap, size_t n_bits);
 
 #endif // _BITMAP_
