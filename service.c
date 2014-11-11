@@ -37,6 +37,7 @@ int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, uint16_
 int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp);
 
 int main() {
+  struct shared_context shared;
   struct thread_context contexts[NUM_THREADS];
   struct worker_data worker_data[NUM_WORKERS];
   struct arpd_data arpd_data;
@@ -75,10 +76,17 @@ int main() {
   rxring = NETMAP_RXRING(nifp, 0);
   txring = NETMAP_TXRING(nifp, 0);
 
+  /* shared variables */
+  shared.contexts = contexts;
+  shared.num_threads = NUM_THREADS;
+  shared.arpd_idx = NUM_WORKERS;
+  shared.dispatcher_idx = NUM_WORKERS + 1;
+
   /* generic context initialization */
   for (i=0; i < NUM_THREADS; i++) {
     contexts[i].num_threads = NUM_THREADS;
     contexts[i].contexts = contexts;
+    contexts[i].shared = &shared;
     contexts[i].pkt_xmit_q = NULL;
     contexts[i].pkt_recv_q = NULL;
     contexts[i].msg_q = NULL;

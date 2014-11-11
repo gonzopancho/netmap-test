@@ -34,12 +34,20 @@ struct inet_info {
   struct in_addr default_route;
 };
 
+struct shared_context {
+  struct thread_context *contexts;
+  uint32_t num_threads;
+  uint32_t dispatcher_idx;
+  uint32_t arpd_idx;
+};
+
 struct thread_context {
   pthread_t thread;
   int thread_id;
   int thread_type;
   uint32_t num_threads;
   struct thread_context *contexts;
+  struct shared_context *shared;
   tqueue *pkt_xmit_q;
   tqueue *pkt_recv_q;
   squeue *msg_q;
