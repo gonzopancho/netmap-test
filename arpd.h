@@ -9,6 +9,8 @@
 #include "ethernet.h"
 #include "arp.h"
 #include "common.h"
+#include "message.h"
+
 
 struct arpd_data {
   int msg_q_capacity;

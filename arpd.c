@@ -16,11 +16,12 @@ void *arpd(void *threadarg) {
   struct arp_pkt *arp;
   struct netmap_ring *rxring;
   void *ring_idx;
-  uint32_t *slots_used;
+  uint32_t dispatcher_idx;
 
   context = (struct thread_context *)threadarg;
   data = context->data;
   rxring = data->rxring;
+  dispatcher_idx = context->shared->dispatcher_idx;
 
   ether_arp_len = sizeof(struct ether_header) + sizeof(struct arp_pkt);
   if (ether_arp_len < ETHER_MIN_LEN - ETHER_CRC_LEN)
@@ -46,15 +47,11 @@ void *arpd(void *threadarg) {
     exit(1);
   }
 
-  slots_used = bitmap_new(rxring->num_slots);
-  if (!slots_used)
-    exit(1);
-
   rv = arpd_init(context);
-
   if (!rv) {
     pthread_exit(NULL);
   }
+
 
   printf("arpd[%d]: initialized\n", context->thread_id);
   // signal to main() that we are initialized
@@ -65,18 +62,24 @@ void *arpd(void *threadarg) {
     // read all the incoming packets
     while (tqueue_remove(context->pkt_recv_q, &transaction, 
             &ring_idx) > 0) {
-      etherpkt = (struct ethernet_pkt *) NETMAP_BUF(rxring, rxring->slot[(uint32_t)ring_idx].buf_idx);
-      bitmap_set(slots_used , (uint32_t)ring_idx);
+      etherpkt = (struct ethernet_pkt *) NETMAP_BUF(rxring, 
+                                    rxring->slot[(uint32_t)ring_idx].buf_idx);
       arp = (struct arp_pkt*) etherpkt->data;
 
-      if (!arp_is_valid(arp))
+      if (!arp_is_valid(arp)) {
+        send_transaction_update_single(&context->contexts[dispatcher_idx], 
+                                        (uint32_t) ring_idx);
         continue;
+      }
 
       arp_print(arp);
 
       if (arp->arp_h.ar_op == ARP_OP_REQUEST) {
-        if (arp->tpa.s_addr != data->addr->s_addr)
+        if (arp->tpa.s_addr != data->addr->s_addr) {
+          send_transaction_update_single(&context->contexts[dispatcher_idx],
+                                          (uint32_t) ring_idx);
           continue;
+        }
 
         /* send a reply for this request */
         memcpy(arp_temp, arp_reply_template, ether_arp_len);
@@ -84,17 +87,21 @@ void *arpd(void *threadarg) {
         //transmit_enqueue(txring, arp_temp, ether_arp_len);
       } else {
         // check if replying for an IP that I want
-        if (!arp_reply_filter(arp, data->addr))
+        if (!arp_reply_filter(arp, data->addr)) {
+          send_transaction_update_single(&context->contexts[dispatcher_idx],
+                                          (uint32_t) ring_idx);
           continue;
+        }
 
         // TODO: then add to arp cache
       }
 
-      // TODO: send slots_used to dispatcher when transaction is done
+      send_transaction_update_single(&context->contexts[dispatcher_idx],
+                                      (uint32_t) ring_idx);
     }
-    // read all the messages
 
-    // sleep
+    // TODO: read all the messages
+
     sleep(1);
   } // for (;;)
 
