@@ -35,5 +35,5 @@ void bitmap_print(uint32_t *bitmap, size_t n_bits) {
 static void char2bin(unsigned char c) {
   int i;
   for (i=CHAR_BIT-1; i>=0; i--)
-    printf("%hd", ((c & (1<<i))>>i));
+    printf("%d", ((c & (1<<i))>>i));
 }
