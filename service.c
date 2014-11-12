@@ -367,6 +367,7 @@ int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt,
 int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp) {
   struct nmreq req;
   int retval;
+  struct netmap_ring *rxring, *txring;
 
   *fd = open("/dev/netmap", O_RDWR);
   if (*fd < 0) {
@@ -401,6 +402,16 @@ int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp) {
 
   *nifp = NETMAP_IF(*mem, req.nr_offset);
   //print_netmap_if(*nifp);
+
+  rxring = NETMAP_RXRING(*nifp, 0);
+  rxring->avail = 0;
+  rxring->cur = 0;
+  rxring->reserved = 0;
+
+  txring = NETMAP_TXRING(*nifp, 0);
+  txring->avail = 0;
+  txring->cur = 0;
+  txring->reserved = 0;
 
   return 1;
 }
