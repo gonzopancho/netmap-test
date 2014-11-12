@@ -68,6 +68,31 @@ void arp_print(struct arp_pkt *arp) {
   printf("  Target: %s (%s)\n", tpa, tha);
 }
 
+void arp_print_line(struct arp_pkt *arp) {
+  char sha[6*3];
+  char spa[4*4];
+  char tha[6*3];
+  char tpa[4*4];
+
+  printf("ARP_");
+  switch(arp->arp_h.ar_op) {
+    case ARP_OP_REQUEST:
+      printf("REQ");
+      break;
+    case ARP_OP_REPLY:
+      printf("REP");
+      break;
+    default:
+      printf("UNK");
+  }
+  ether_ntoa_r(&arp->sha, sha);
+  inet_ntoa_r(arp->spa, spa, sizeof(spa));
+  ether_ntoa_r(&arp->tha, tha);
+  inet_ntoa_r(arp->tpa, tpa, sizeof(tpa));
+
+  printf(": %s/%s -> %s/%s\n", spa, sha, tpa, tha);
+}
+
 void arp_create_request_template(struct ethernet_pkt *pkt, 
                 struct ether_addr *src_mac, 
                 struct in_addr *src_ip) {

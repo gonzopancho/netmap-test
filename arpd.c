@@ -72,7 +72,7 @@ void *arpd(void *threadarg) {
         continue;
       }
 
-      arp_print(arp);
+      arp_print_line(arp);
 
       if (arp->arp_h.ar_op == ARP_OP_REQUEST) {
         if (arp->tpa.s_addr != data->addr->s_addr) {
