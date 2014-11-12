@@ -6,13 +6,9 @@
 #include "common.h"
 #include "worker.h"
 #include "ethernet.h"
+#include "message.h"
 
-#if 0
-struct dispatcher_data {
-  int thread_id;
-  struct worker_stats *worker_stats;
-};
-#endif
+#define POLL_TIMEOUT 10
 
 struct worker_stats {
   size_t received;
@@ -31,5 +27,6 @@ struct dispatcher_data {
 
 void *dispatcher(void *threadarg);
 int dispatcher_init(struct thread_context *context);
-
+void update_slots_used_single(void *msg_hdr, uint32_t *bitmap,
+                              struct netmap_ring *ring);
 #endif
