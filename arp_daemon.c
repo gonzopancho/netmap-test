@@ -46,14 +46,14 @@ void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
 void print_inet_info(struct inet_info *ineti);
 int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt, uint16_t pktlen);
-
+int transmit_enqueue_ptr(struct netmap_ring *ring, struct ethernet_pkt *pkt,
+                          uint16_t pktlen);
 
 int main() {
   struct netmap_if *nifp;
   struct netmap_ring *rxring;
   struct netmap_ring *txring;
   struct nmreq req;
-  struct pollfd pfd;
   struct if_info ifi;
   struct inet_info ineti;
   int fd, retval;
@@ -113,12 +113,10 @@ int main() {
     exit(1);
   }
   
-  pfd.fd = fd;
-  pfd.events = (POLLIN);
-
   bzero(&req, sizeof(req));
   strncpy(req.nr_name, ifname, sizeof(req.nr_name));
-  req.nr_version = NETMAP_API;
+  req.nr_version = 4;
+  req.nr_ringid |= NETMAP_NO_TX_POLL;
 
   /* register the NIC for netmap mode */
   retval = ioctl(fd, NIOCREGIF, &req);
@@ -129,8 +127,8 @@ int main() {
   /* give the NIC some time to unregister from the host stack */
   sleep(2);
 
-  printf("After registration\n");
-  print_nmreq(&req);
+  //printf("After registration\n");
+  //print_nmreq(&req);
 
   mem = mmap(0, req.nr_memsize, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 
@@ -139,20 +137,23 @@ int main() {
   }
 
   nifp = NETMAP_IF(mem, req.nr_offset);
-  print_netmap_if(nifp);
+  //print_netmap_if(nifp);
 
   rxring = NETMAP_RXRING(nifp, 0);
+  rxring->avail = 0;
+  rxring->cur = 0;
+  rxring->reserved = 0;
   txring = NETMAP_TXRING(nifp, 0);
-  print_ring(rxring, 0);
+  txring->avail = 0;
+  txring->cur = 0;
+  txring->reserved = 0;
+  //print_ring(rxring, 0);
 
 
   /* main poll loop */
   for(;;) {
-    retval = poll(&pfd, 1, INFTIM);
-    if (retval < 0) {
-      perror("poll failed");
-      continue;
-    }
+    usleep(1000);
+    ioctl(fd, NIOCRXSYNC, NULL);
 
     for (; rxring->avail > 0; rxring->avail--) {
       i = rxring->cur;
@@ -173,17 +174,30 @@ int main() {
       if (arp->arp_h.ar_op == ARP_OP_REQUEST) { 
         if(arp->tpa.s_addr != ineti.addr.s_addr)
           continue;
-  
+
+        printf("R|");
+        arp_print_line(arp); 
         /* send a reply for this request */
         memcpy(arp_temp, arp_reply_template, ether_arp_len);
         arp_update_reply(arp_temp, &arp->spa, &arp->sha);
+        printf("T|");
+        arp_print_line((struct arp_pkt *)arp_temp->data);
         transmit_enqueue(txring, arp_temp, ether_arp_len);
-        //ioctl(pfd.fd, NIOCTXSYNC, NULL);
+#if 0
+        // support code for NS_INDIRECT when enabled by NETMAP_API v5
+        arp_update_reply(arp_reply_template, &arp->spa, &arp->sha);
+        printf("T|");
+        arp_print_line((struct arp_pkt *)arp_reply_template->data);
+        transmit_enqueue_ptr(txring, arp_reply_template, ether_arp_len);
+#endif
+        ioctl(fd, NIOCTXSYNC, NULL);
       } else {
         if (!arp_reply_filter(arp, &ineti.addr))
           continue;
-            // check if replying for an IP that I want
-            // then add to arp cache
+        printf("R|");
+        arp_print_line(arp);
+        // check if replying for an IP that I want
+        // then add to arp cache
       }
     } // for rxring
   } // for(;;)
@@ -376,10 +390,32 @@ int transmit_enqueue(struct netmap_ring *ring, struct ethernet_pkt *pkt,
 
   cur = ring->cur;
   slot = &ring->slot[cur];
-  slot->flags = NS_REPORT;
+  slot->flags = 0;
   slot->len = pktlen;
   buf = NETMAP_BUF(ring, slot->buf_idx);
   memcpy(buf, pkt, pktlen);
+  ring->avail--;
+  ring->cur = NETMAP_RING_NEXT(ring, cur);
+
+  return 1;
+}
+
+int transmit_enqueue_ptr(struct netmap_ring *ring, struct ethernet_pkt *pkt,
+                          uint16_t pktlen) {
+  uint32_t cur;
+  struct netmap_slot *slot;
+  void *buf;
+
+  if (ring->avail == 0)
+    return 0;
+
+  cur = ring->cur;
+  slot = &ring->slot[cur];
+  slot->flags = 0;
+  slot->flags |= NS_INDIRECT;
+  slot->len = pktlen;
+  buf = NETMAP_BUF(ring, slot->buf_idx);
+  *((struct ethernet_pkt **)buf) = pkt;
   ring->avail--;
   ring->cur = NETMAP_RING_NEXT(ring, cur);
 

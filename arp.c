@@ -90,7 +90,7 @@ void arp_print_line(struct arp_pkt *arp) {
   ether_ntoa_r(&arp->tha, tha);
   inet_ntoa_r(arp->tpa, tpa, sizeof(tpa));
 
-  printf(": %s/%s -> %s/%s\n", spa, sha, tpa, tha);
+  printf(": %s/%s > %s/%s\n", spa, sha, tpa, tha);
 }
 
 void arp_create_request_template(struct ethernet_pkt *pkt, 
