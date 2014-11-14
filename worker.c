@@ -151,8 +151,8 @@ int worker_init(struct thread_context *context) {
   if (!context->msg_q)
     return 0;
 
-  context->pkt_xmit_q = tqueue_new(data->xmit_q_transactions,
-                                    data->xmit_q_actions_per_transaction);
+  context->pkt_xmit_q = cqueue_spsc_new(data->xmit_q_capacity,
+                                        data->xmit_q_elem_size);
   if (!context->pkt_xmit_q) {
     squeue_delete(&context->msg_q);
     return 0;
@@ -162,7 +162,7 @@ int worker_init(struct thread_context *context) {
                                     data->recv_q_actions_per_transaction);
   if (!context->pkt_recv_q) {
     squeue_delete(&context->msg_q);
-    tqueue_delete(&context->pkt_recv_q);
+    cqueue_spsc_delete(&context->pkt_xmit_q);
     return 0;
   }
 

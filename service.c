@@ -102,8 +102,8 @@ int main() {
     contexts[i].data = &worker_data[i];
     worker_data[i].msg_q_capacity = 256;
     worker_data[i].msg_q_elem_size = MSG_BLOCKSIZE;
-    worker_data[i].xmit_q_transactions = 32;
-    worker_data[i].xmit_q_actions_per_transaction = 32;
+    worker_data[i].xmit_q_capacity = 1024;
+    worker_data[i].xmit_q_elem_size = sizeof(struct xmit_queue_slot) + MTU;
     worker_data[i].recv_q_transactions = 32;
     worker_data[i].recv_q_actions_per_transaction = 32;
     printf("main(): creating worker %d\n", i);
@@ -129,8 +129,9 @@ int main() {
   contexts[i].data = &arpd_data;
   arpd_data.msg_q_capacity = 256;
   arpd_data.msg_q_elem_size = MSG_BLOCKSIZE;
-  arpd_data.xmit_q_transactions = 64;
-  arpd_data.xmit_q_actions_per_transaction = 1;
+  arpd_data.xmit_q_capacity = 64;
+  arpd_data.xmit_q_elem_size = sizeof(struct xmit_queue_slot) + 
+                                sizeof(struct arp_pkt);
   arpd_data.recv_q_transactions = 64;
   arpd_data.recv_q_actions_per_transaction = 1;
   arpd_data.mac = &ifi.mac;
@@ -294,7 +295,7 @@ int init_if_info(struct if_info *ifi, const char *ifname) {
 
   strncpy(ifi->ifname, ifname, len);
 
-  ifi->mtu = 1500;
+  ifi->mtu = MTU;
   return get_if_hwaddr(ifi->ifname, &ifi->mac);
 }
 

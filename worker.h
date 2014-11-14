@@ -41,8 +41,8 @@ void *worker(void *threadarg);
 struct worker_data {
   int msg_q_capacity;
   int msg_q_elem_size;
-  int xmit_q_transactions;
-  int xmit_q_actions_per_transaction;
+  int xmit_q_capacity;
+  int xmit_q_elem_size;
   int recv_q_transactions;
   int recv_q_actions_per_transaction;
 };

@@ -9,7 +9,15 @@
 #include "tqueue.h"
 #include "squeue/squeue.h"
 #include "bitmap.h"
+#include "cqueue/cqueue.h"
 
+#ifndef MEMCPY_ALIGNMENT
+#define MEMCPY_ALIGNMENT 32
+#endif
+
+#ifndef MTU
+#define MTU 1500
+#endif
 
 typedef enum {
   WORKER,
@@ -48,12 +56,19 @@ struct thread_context {
   uint32_t num_threads;
   struct thread_context *contexts;
   struct shared_context *shared;
-  tqueue *pkt_xmit_q;
+  cqueue_spsc *pkt_xmit_q;
   tqueue *pkt_recv_q;
   squeue *msg_q;
   void *data;
   void *(*threadfunc)(void *);
   _Atomic int initialized;
 };
+
+struct xmit_queue_slot {
+  char pad[MEMCPY_ALIGNMENT - sizeof(_Atomic size_t) - sizeof(uint16_t)];
+  uint16_t len;
+  struct ether_header ether_h;
+  unsigned char data[];
+} __attribute__((__packed__));
 
 #endif
