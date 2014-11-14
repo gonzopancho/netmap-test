@@ -26,5 +26,10 @@ struct arpd_data {
 
 void *arpd(void *threadargs);
 int arpd_init(struct thread_context *context);
+int xmit_queue_init(cqueue_spsc *q,
+                    struct in_addr *my_ip, struct ether_addr *my_mac);
+int send_arp_request(cqueue_spsc *q, struct in_addr *target_ip);
+int send_arp_reply(cqueue_spsc *q,
+                    struct in_addr *target_ip, struct in_addr *target_mac);
 
 #endif
