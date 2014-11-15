@@ -1,6 +1,6 @@
 PROGS = reader arp_daemon service
 TESTS = tqueue_test_spsc bitmap_test
-CLEANFILES = $(PROGS) arp.o arpd.o bitmap.o dispatcher.o ethernet.o ip4.o message.o receiver.o tqueue.o worker.o cqueue/cqueue.o squeue/squeue.o 
+CLEANFILES = $(PROGS) arp.o arpd.o bitmap.o dispatcher.o ethernet.o ip4.o message.o receiver.o sender.o tqueue.o worker.o cqueue/cqueue.o squeue/squeue.o
 NO_MAN=
 CFLAGS = -g -O3 -march=native -std=c11 -Wall -Werror -Wextra -Wpedantic -pipe
 LDFLAGS = -pthread
@@ -13,7 +13,7 @@ reader: arp.o ip4.o ethernet.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} ${.ALLSRC} $(LDFLAGS)
 arp_daemon: arp.o ip4.o ethernet.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} ${.ALLSRC} $(LDFLAGS)
-service: arp.o arpd.o bitmap.o dispatcher.o ethernet.o ip4.o message.o receiver.o tqueue.o worker.o cqueue/cqueue.o squeue/squeue.o
+service: arp.o arpd.o bitmap.o dispatcher.o ethernet.o ip4.o message.o receiver.o sender.o tqueue.o worker.o cqueue/cqueue.o squeue/squeue.o
 	$(CC) $(CFLAGS) -o ${.TARGET} ${.TARGET:=.c} ${.ALLSRC} $(LDFLAGS)
 cqueue/cqueue.o: cqueue/cqueue.c
 	$(CC) $(CFLAGS) -c ${.IMPSRC} -o ${.TARGET}

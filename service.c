@@ -16,10 +16,11 @@
 #include "worker.h"
 #include "dispatcher.h"
 #include "arpd.h"
+#include "sender.h"
 #include "message.h"
 
 #define NUM_WORKERS 4
-#define NUM_THREADS (NUM_WORKERS + 2)
+#define NUM_THREADS (NUM_WORKERS + 3)
 
 
 void print_nmreq(struct nmreq *req);
@@ -38,9 +39,10 @@ int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp);
 
 int main() {
   struct shared_context shared;
-  struct thread_context contexts[NUM_THREADS];
+  struct thread_context contexts[NUM_THREADS]; 
   struct worker_data worker_data[NUM_WORKERS];
   struct arpd_data arpd_data;
+  struct sender_data sender_data;
   struct dispatcher_data dispatcher_data;
 
   struct netmap_if *nifp = NULL;
@@ -80,7 +82,7 @@ int main() {
   shared.contexts = contexts;
   shared.num_threads = NUM_THREADS;
   shared.arpd_idx = NUM_WORKERS;
-  shared.dispatcher_idx = NUM_WORKERS + 1;
+  shared.dispatcher_idx = NUM_WORKERS + 2;
 
   /* generic context initialization */
   for (i=0; i < NUM_THREADS; i++) {
@@ -150,8 +152,30 @@ int main() {
   while (atomic_load_explicit(&contexts[i].initialized,
           memory_order_acquire) == 0);
 
-  /* initialize dispatcher */
+  /* initialize sender */
   i = NUM_WORKERS + 1;
+  contexts[i].thread_id = i;
+  contexts[i].threadfunc = sender;
+  contexts[i].thread_type = SENDER;
+  contexts[i].data = &sender_data;
+  sender_data.dropped = NULL;
+  sender_data.txring = txring;
+  sender_data.fd = fd;
+
+  printf("main(): creating sender thread\n");
+  retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+                          (void *) &contexts[i]);
+  if (retval) {
+    fprintf(stderr, "ERROR: return code for pthread_create is %d\n", retval);
+    exit(-1);
+  }
+
+  /* wait for sender to finish initialization */
+  while (atomic_load_explicit(&contexts[i].initialized,
+          memory_order_acquire) == 0);
+
+  /* initialize dispatcher */
+  i = NUM_WORKERS + 2;
   contexts[i].thread_id = i;
   contexts[i].threadfunc = dispatcher;
   contexts[i].thread_type = DISPATCHER;
@@ -175,7 +199,6 @@ int main() {
           memory_order_acquire) == 0);
 
   /* wait for all threads to exit */
-  sleep(5);
   for (i=0; i < NUM_THREADS; i++) {
     retval = pthread_join(contexts[i].thread, NULL);
     if (retval) {
@@ -380,6 +403,7 @@ int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp) {
   bzero(&req, sizeof(req));
   strncpy(req.nr_name, ifname, sizeof(req.nr_name));
   req.nr_version = 4;   // v4 shipped with FreeBSD 10
+  req.nr_ringid |= NETMAP_NO_TX_POLL;
 
   /* register the NIC for netmap mode */
   retval = ioctl(*fd, NIOCREGIF, &req);
@@ -410,9 +434,6 @@ int init_netmap(int *fd, char *ifname, void **mem, struct netmap_if **nifp) {
   rxring->reserved = 0;
 
   txring = NETMAP_TXRING(*nifp, 0);
-  txring->avail = 0;
-  txring->cur = 0;
-  txring->reserved = 0;
 
   return 1;
 }

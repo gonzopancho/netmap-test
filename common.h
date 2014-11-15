@@ -20,6 +20,7 @@
 #endif
 
 typedef enum {
+  UNINITIALIZED,
   WORKER,
   ARPD,
   DISPATCHER,
