@@ -80,6 +80,8 @@ int main() {
 
   /* shared variables */
   shared.contexts = contexts;
+  shared.inet_info = &ineti;
+  shared.if_info = &ifi;
   shared.num_threads = NUM_THREADS;
   shared.arpd_idx = NUM_WORKERS;
   shared.dispatcher_idx = NUM_WORKERS + 2;

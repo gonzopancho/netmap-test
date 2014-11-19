@@ -45,6 +45,8 @@ struct inet_info {
 
 struct shared_context {
   struct thread_context *contexts;
+  struct inet_info *inet_info;
+  struct if_info *if_info;
   uint32_t num_threads;
   uint32_t dispatcher_idx;
   uint32_t arpd_idx;
