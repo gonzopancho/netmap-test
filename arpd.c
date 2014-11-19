@@ -4,6 +4,7 @@ void *arpd(void *threadarg) {
   assert(threadarg);
 
   struct thread_context *context;
+  struct thread_context *contexts;
   struct arpd_data *data;
   int rv;
 
@@ -15,6 +16,7 @@ void *arpd(void *threadarg) {
   uint32_t dispatcher_idx;
 
   context = (struct thread_context *)threadarg;
+  contexts = context->shared->contexts;
   data = context->data;
   rxring = data->rxring;
   dispatcher_idx = context->shared->dispatcher_idx;
@@ -43,8 +45,6 @@ void *arpd(void *threadarg) {
         continue;
       }
 
-      arp_print_line(arp);
-
       if (arp->arp_h.ar_op == ARP_OP_REQUEST) {
         if (arp->tpa.s_addr != data->addr->s_addr) {
           send_transaction_update_single(&context->contexts[dispatcher_idx],
@@ -52,16 +52,25 @@ void *arpd(void *threadarg) {
           continue;
         }
 
-        // TODO: send a reply for this request
+        printf("R)");
+        arp_print_line(arp);
+
+        // send_arp_reply could fail when xmit queue is full,
+        // however, the sender should just resend a request
+        send_arp_reply(context->pkt_xmit_q, &arp->spa, &arp->sha);
       } else {
-        // check if replying for an IP that I want
         if (!arp_reply_filter(arp, data->addr)) {
           send_transaction_update_single(&context->contexts[dispatcher_idx],
                                           (uint32_t) ring_idx);
           continue;
         }
 
-        // TODO: then add to arp cache
+        printf("R)");
+        arp_print_line(arp);
+
+        // TODO: also check against a list of my outstanding arp requests
+        // prior to insertion in the arp cache
+        arp_cache_insert(data->arp_cache, &arp->spa, &arp->sha);
       }
 
       send_transaction_update_single(&context->contexts[dispatcher_idx],
@@ -109,6 +118,14 @@ int arpd_init(struct thread_context *context) {
   if (!context->pkt_recv_q) {
     squeue_delete(&context->msg_q);
     cqueue_spsc_delete(&context->pkt_xmit_q);
+    return 0;
+  }
+
+  data->arp_cache = arp_cache_new(context);
+  if (!data->arp_cache) {
+    squeue_delete(&context->msg_q);
+    cqueue_spsc_delete(&context->pkt_xmit_q);
+    tqueue_delete(&context->pkt_recv_q);
     return 0;
   }
 
@@ -185,12 +202,14 @@ int send_arp_request(cqueue_spsc *q, struct in_addr *target_ip) {
   memset(&request->tha, 0, sizeof(struct ether_addr));
   request->tpa.s_addr = target_ip->s_addr;
 
+  printf("S)");
+  arp_print_line(request);
   cqueue_spsc_push_slot_finish(q);
   return 1;
 }
 
 int send_arp_reply(cqueue_spsc *q,
-                    struct in_addr *target_ip, struct in_addr *target_mac) {
+                    struct in_addr *target_ip, struct ether_addr *target_mac) {
   struct xmit_queue_slot *s;
   struct arp_pkt *reply;
 
@@ -208,6 +227,69 @@ int send_arp_reply(cqueue_spsc *q,
   memcpy(&reply->tha, target_mac, sizeof(struct ether_addr));
   reply->tpa.s_addr = target_ip->s_addr;
 
+  printf("S)");
+  arp_print_line(reply);
   cqueue_spsc_push_slot_finish(q);
   return 1;
+}
+
+struct arp_cache *arp_cache_new(struct thread_context *context) {
+  struct arp_cache *arp_cache;
+
+  arp_cache = malloc(sizeof(struct arp_cache));
+  if (!arp_cache)
+    return NULL;
+
+  arp_cache->baseline = context->shared->inet_info->network.s_addr;
+  arp_cache->num_entries = ntohl(context->shared->inet_info->broadcast.s_addr -
+                                 arp_cache->baseline) + 1;
+
+  arp_cache->values = calloc(arp_cache->num_entries, sizeof(struct ether_addr));
+  if (!arp_cache->values) {
+    free(arp_cache);
+    return NULL;
+  }
+
+  memcpy(&arp_cache->values[arp_cache->num_entries-1], &ETHER_ADDR_BROADCAST,
+          sizeof(struct ether_addr));
+
+  return arp_cache;
+}
+
+struct ether_addr *arp_cache_lookup(struct arp_cache *arp_cache,
+                                    struct in_addr *key) {
+  uint32_t idx;
+
+  idx = ntohl(key->s_addr - arp_cache->baseline);
+  if (memcmp(&arp_cache->values[idx], &ETHER_ADDR_ZERO,
+              sizeof(struct ether_addr)) == 0)
+    return NULL;
+
+  return &arp_cache->values[idx];
+}
+
+void arp_cache_insert(struct arp_cache *arp_cache,
+                      struct in_addr *key,
+                      struct ether_addr *value) {
+  uint32_t idx;
+
+  idx = ntohl(key->s_addr - arp_cache->baseline);
+  memcpy(&arp_cache->values[idx], value, sizeof(struct ether_addr));
+}
+
+void arp_cache_print(struct arp_cache *arp_cache) {
+  uint32_t i;
+  char ip[4*4];
+  char mac[6*3];
+  struct in_addr temp;
+
+  for (i=0; i < arp_cache->num_entries; i++) {
+    if (memcmp(&arp_cache->values[i], &ETHER_ADDR_ZERO,
+              sizeof(struct ether_addr)) == 0)
+      continue;
+    temp.s_addr = arp_cache->baseline + htonl(i);
+    inet_ntoa_r(temp, ip, sizeof(ip));
+    ether_ntoa_r(&arp_cache->values[i], mac);
+    printf("arp_cache[%u]: %s->%s\n", i, ip, mac);
+  }
 }

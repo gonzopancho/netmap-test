@@ -6,6 +6,8 @@
 #include <stdlib.h>     // malloc
 #include <stdio.h>      // printf
 #include <unistd.h>     // sleep
+#include <string.h>     // memcmp
+#include <arpa/inet.h>  // ntohl
 #include "ethernet.h"
 #include "arp.h"
 #include "common.h"
@@ -22,6 +24,13 @@ struct arpd_data {
   struct ether_addr *mac;
   struct in_addr *addr;
   struct netmap_ring *rxring;
+  struct arp_cache *arp_cache;
+};
+
+struct arp_cache {
+  struct ether_addr *values;
+  in_addr_t baseline;
+  uint32_t num_entries;
 };
 
 void *arpd(void *threadargs);
@@ -30,6 +39,12 @@ int xmit_queue_init(cqueue_spsc *q,
                     struct in_addr *my_ip, struct ether_addr *my_mac);
 int send_arp_request(cqueue_spsc *q, struct in_addr *target_ip);
 int send_arp_reply(cqueue_spsc *q,
-                    struct in_addr *target_ip, struct in_addr *target_mac);
-
+                    struct in_addr *target_ip, struct ether_addr *target_mac);
+struct arp_cache *arp_cache_new(struct thread_context *context);
+struct ether_addr *arp_cache_lookup(struct arp_cache *arp_cache,
+                                    struct in_addr *key);
+void arp_cache_insert(struct arp_cache *arp_cache,
+                      struct in_addr *key,
+                      struct ether_addr *value);
+void arp_cache_print(struct arp_cache *arp_cache);
 #endif
