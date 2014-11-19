@@ -52,3 +52,9 @@ void ip4_print(struct ip4_pkt *ip) {
   printf("  dst IP: %s\n", inet_ntoa_r(ip->ip_h.ip_dst, ip_dst, sizeof(ip_dst)));
 }
 
+void in_addr_print(struct in_addr *addr) {
+  uint32_t n = addr->s_addr;
+  unsigned char *c = (void *)&n;
+  printf("%u.%u.%u.%u", c[0], c[1], c[2], c[3]);
+}
+
