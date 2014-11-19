@@ -61,7 +61,7 @@ void *sender(void *threadarg) {
       }
 
       txring_push(txring, &s->ether_h, s->len);
-      cqueue_spsc_pop_slot_finish(context[i].pkt_xmit_q);
+      cqueue_spsc_pop_slot_finish(contexts[i].pkt_xmit_q);
 
       if (txring->avail == 0)
         ioctl(data->fd, NIOCTXSYNC, NULL);
