@@ -40,7 +40,6 @@ void print_ring2(struct netmap_ring *ring, uint32_t ridx);
 void print_buf(char *buf, uint16_t len);
 void print_buf2(char *buf, uint16_t len); 
 int get_if_hwaddr(const char* if_name, struct ether_addr *addr);
-void dispatch(struct ethernet_pkt *pkt, uint16_t len);
 int init_if_info(struct if_info *ifi, const char *ifname);
 void print_if_info(struct if_info *ifi);
 int init_inet_info(struct inet_info *ineti, char *addr, char *netmask, char *default_route);
@@ -54,6 +53,7 @@ int main() {
   struct netmap_ring *rxring;
   struct netmap_ring *txring;
   struct nmreq req;
+  struct pollfd pfd;
   struct if_info ifi;
   struct inet_info ineti;
   int fd, retval;
@@ -112,6 +112,9 @@ int main() {
     close(fd);
     exit(1);
   }
+
+  pfd.fd = fd;
+  pfd.events = (POLLIN);
   
   bzero(&req, sizeof(req));
   strncpy(req.nr_name, ifname, sizeof(req.nr_name));
@@ -144,16 +147,16 @@ int main() {
   rxring->cur = 0;
   rxring->reserved = 0;
   txring = NETMAP_TXRING(nifp, 0);
-  txring->avail = 0;
-  txring->cur = 0;
-  txring->reserved = 0;
   //print_ring(rxring, 0);
 
 
   /* main poll loop */
   for(;;) {
-    usleep(1000);
-    ioctl(fd, NIOCRXSYNC, NULL);
+    retval = poll(&pfd, 1, INFTIM);
+    if (retval < 0) {
+      perror("poll failed");
+      continue;
+    }
 
     for (; rxring->avail > 0; rxring->avail--) {
       i = rxring->cur;
@@ -295,27 +298,6 @@ int get_if_hwaddr(const char* if_name, struct ether_addr *addr) {
   freeifaddrs(ifas);
   return ifa ? 1 : 0;
 }
-
-
-void dispatch(struct ethernet_pkt *pkt, uint16_t len) {
-  struct arp_pkt *arp;
-
-  switch (pkt->h.ether_type) {
-    case IP4_ETHERTYPE:
-      break;
-    case ARP_ETHERTYPE:
-      arp = (struct arp_pkt *)(pkt->data);
-      if(arp_is_valid(arp)) {
-        print_buf2((char *)pkt, len);
-        arp_print(arp);
-      }
-      break;
-    case IP6_ETHERTYPE:
-    default:
-      printf("DISPATCH: unknown ethertype\n");
-  }
-}
-
 
 int init_if_info(struct if_info *ifi, const char *ifname) {
   size_t len;
