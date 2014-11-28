@@ -11,6 +11,9 @@
 #include "bitmap.h"
 #include "cqueue/cqueue.h"
 
+// upper bound on the number of threads and the thread id
+#define MAX_THREADS 64
+
 #ifndef MEMCPY_ALIGNMENT
 #define MEMCPY_ALIGNMENT 32
 #endif

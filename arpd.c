@@ -70,7 +70,8 @@ void *arpd(void *threadarg) {
 
         // TODO: also check against a list of my outstanding arp requests
         // prior to insertion in the arp cache
-        arp_cache_insert(data->arp_cache, &arp->spa, &arp->sha);
+        //arp_cache_insert(data->arp_cache, &arp->spa, &arp->sha);
+        handle_arp_reply(data->arp_cache, &arp->spa, &arp->sha);
       }
 
       send_transaction_update_single(&context->contexts[dispatcher_idx],
@@ -244,26 +245,24 @@ struct arp_cache *arp_cache_new(struct thread_context *context) {
   arp_cache->num_entries = ntohl(context->shared->inet_info->broadcast.s_addr -
                                  arp_cache->baseline) + 1;
 
-  arp_cache->values = calloc(arp_cache->num_entries, sizeof(struct ether_addr));
+  arp_cache->values = calloc(arp_cache->num_entries,
+                             sizeof(struct arp_cache_entry));
   if (!arp_cache->values) {
     free(arp_cache);
     return NULL;
   }
 
-  memcpy(&arp_cache->values[arp_cache->num_entries-1], &ETHER_ADDR_BROADCAST,
-          sizeof(struct ether_addr));
+  memcpy(&arp_cache->values[arp_cache->num_entries-1].mac,
+          &ETHER_ADDR_BROADCAST, sizeof(struct ether_addr));
 
   return arp_cache;
 }
 
-struct ether_addr *arp_cache_lookup(struct arp_cache *arp_cache,
+struct arp_cache_entry *arp_cache_lookup(struct arp_cache *arp_cache,
                                     struct in_addr *key) {
   uint32_t idx;
 
   idx = ntohl(key->s_addr - arp_cache->baseline);
-  if (memcmp(&arp_cache->values[idx], &ETHER_ADDR_ZERO,
-              sizeof(struct ether_addr)) == 0)
-    return NULL;
 
   return &arp_cache->values[idx];
 }
@@ -274,7 +273,7 @@ void arp_cache_insert(struct arp_cache *arp_cache,
   uint32_t idx;
 
   idx = ntohl(key->s_addr - arp_cache->baseline);
-  memcpy(&arp_cache->values[idx], value, sizeof(struct ether_addr));
+  memcpy(&arp_cache->values[idx].mac, value, sizeof(struct ether_addr));
 }
 
 void arp_cache_print(struct arp_cache *arp_cache) {
@@ -289,7 +288,84 @@ void arp_cache_print(struct arp_cache *arp_cache) {
       continue;
     temp.s_addr = arp_cache->baseline + htonl(i);
     inet_ntoa_r(temp, ip, sizeof(ip));
-    ether_ntoa_r(&arp_cache->values[i], mac);
+    ether_ntoa_r(&arp_cache->values[i].mac, mac);
     printf("arp_cache[%u]: %s->%s\n", i, ip, mac);
   }
+}
+
+void handle_arp_reply(struct arp_cache *arp_cache,
+                      struct in_addr *key,
+                      struct ether_addr *value) {
+  uint32_t idx, i;
+  struct arp_cache_entry *e;
+  int rv;
+
+  idx = ntohl(key->s_addr - arp_cache->baseline);
+  e = &arp_cache->values[idx];
+
+  memcpy(&e->mac, value, sizeof(struct ether_addr));
+  e->retries = 0;
+  rv = gettimeofday(&e->timestamp, NULL);
+  assert(rv == 0);
+
+  for (i=0; i < MAX_THREADS; i++) {
+    if (bitmap_get(e->waiters, i))
+      notify_waiter(i, key, value);
+  }
+  bitmap_clearall(e->waiters, MAX_THREADS);
+}
+
+void notify_waiter(uint32_t thread_id, struct in_addr *key, 
+                    struct ether_addr *value) {
+  // TODO: everything
+  // NOTE: use args to shut up the compiler
+  if (thread_id)
+    thread_id = 0;
+  if (key)
+    key = NULL;
+  if (value)
+    value = NULL;
+
+}
+
+void update_arp_cache(struct arp_cache *arp_cache) {
+  uint32_t i;
+  struct arp_cache_entry *e;
+  struct timeval t;
+  struct in_addr ip;
+  int rv;
+
+  rv = gettimeofday(&t, NULL);
+  assert(rv == 0);
+
+  for (i=0; i < arp_cache->num_entries; i++) {
+    e = &arp_cache->values[i];
+
+    if (e->timestamp.tv_sec == 0)
+      continue;
+
+    if (e->retries == ARP_CACHE_RETRY_LIMIT) {
+      // TODO: send notification to waiters
+      // TODO: reset arp cache entry
+      continue;
+    }
+
+    if (delta_t_exceeds(&t, &e->timestamp, ARP_CACHE_LIFETIME)) {
+      ip.s_addr = arp_cache->baseline + htonl(i);
+      //send_arp_request(&ip);
+      e->retries++;
+    }
+  }
+}
+
+int delta_t_exceeds(struct timeval *s, struct timeval *e, uint64_t limit) {
+  // TODO: everything
+  // NOTE: use args to shut up the compiler
+  if (s)
+    s = NULL;
+  if (e)
+    e = NULL;
+  if (limit)
+    limit = 0;
+  return 1;
 }
