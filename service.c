@@ -44,10 +44,8 @@ int main() {
   struct arpd_data arpd_data;
   struct sender_data sender_data;
   struct dispatcher_data dispatcher_data;
-
   struct netmap_if *nifp = NULL;
   struct netmap_ring *rxring, *txring;
-
   struct if_info ifi;
   struct inet_info ineti;
   int fd, retval;
@@ -99,7 +97,6 @@ int main() {
   /* initialize workers */
   for (i=0; i < NUM_WORKERS; i++) {
     contexts[i].thread_id = i;
-    contexts[i].threadfunc = worker;
     contexts[i].thread_type = WORKER;
     contexts[i].data = &worker_data[i];
     worker_data[i].msg_q_capacity = 256;
@@ -109,7 +106,7 @@ int main() {
     worker_data[i].recv_q_transactions = 32;
     worker_data[i].recv_q_actions_per_transaction = 32;
     printf("main(): creating worker %d\n", i);
-    retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+    retval = pthread_create(&contexts[i].thread, NULL, worker,
                             (void *) &contexts[i]);
     if (retval) {
       fprintf(stderr,"ERROR: return code for pthread_create is %d\n", retval);
@@ -126,7 +123,6 @@ int main() {
   /* initialize arpd */
   i = NUM_WORKERS;
   contexts[i].thread_id = i;
-  contexts[i].threadfunc = arpd;
   contexts[i].thread_type = ARPD;
   contexts[i].data = &arpd_data;
   arpd_data.msg_q_capacity = 256;
@@ -139,7 +135,7 @@ int main() {
   arpd_data.rxring = rxring;
 
   printf("main(): creating arpd\n");
-  retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+  retval = pthread_create(&contexts[i].thread, NULL, arpd,
                           (void *) &contexts[i]);
   if (retval) {
     fprintf(stderr, "ERROR: return code for pthread_create is %d\n", retval);
@@ -153,7 +149,6 @@ int main() {
   /* initialize sender */
   i = NUM_WORKERS + 1;
   contexts[i].thread_id = i;
-  contexts[i].threadfunc = sender;
   contexts[i].thread_type = SENDER;
   contexts[i].data = &sender_data;
   sender_data.dropped = NULL;
@@ -161,7 +156,7 @@ int main() {
   sender_data.fd = fd;
 
   printf("main(): creating sender thread\n");
-  retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+  retval = pthread_create(&contexts[i].thread, NULL, sender,
                           (void *) &contexts[i]);
   if (retval) {
     fprintf(stderr, "ERROR: return code for pthread_create is %d\n", retval);
@@ -175,7 +170,6 @@ int main() {
   /* initialize dispatcher */
   i = NUM_WORKERS + 2;
   contexts[i].thread_id = i;
-  contexts[i].threadfunc = dispatcher;
   contexts[i].thread_type = DISPATCHER;
   contexts[i].data = &dispatcher_data;
   dispatcher_data.msg_q_capacity = 1024;
@@ -184,7 +178,7 @@ int main() {
   dispatcher_data.nifp = nifp;
 
   printf("main(): creating dispatcher thread\n");
-  retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,
+  retval = pthread_create(&contexts[i].thread, NULL, dispatcher,
                           (void *) &contexts[i]);
   if (retval) {
     fprintf(stderr, "ERROR: return code for pthread_create is %d\n", retval);

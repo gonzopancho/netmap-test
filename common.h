@@ -56,15 +56,14 @@ struct shared_context {
 };
 
 struct thread_context {
-  pthread_t thread;
-  int thread_id;
-  int thread_type;
   struct shared_context *shared;
   cqueue_spsc *pkt_xmit_q;
   tqueue *pkt_recv_q;
   squeue *msg_q;
   void *data;
-  void *(*threadfunc)(void *);
+  pthread_t thread;
+  int thread_id;
+  int thread_type;
   _Atomic int initialized;
 };
 
