@@ -18,6 +18,7 @@ struct ip4_pkt {
 
 int ip4_is_valid(struct ip4_pkt *ip);
 void ip4_print(struct ip4_pkt *ip);
+void ip4_print_line(struct ip4_pkt *ip);
 void in_addr_print(struct in_addr *addr);
 
 #endif

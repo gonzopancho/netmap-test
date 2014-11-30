@@ -48,8 +48,33 @@ void ip4_print(struct ip4_pkt *ip) {
   }
 
   printf("  checksum: %hu\n", ntohs(ip->ip_h.ip_sum));
-  printf("  src IP: %s\n", inet_ntoa_r(ip->ip_h.ip_src, ip_src, sizeof(ip_src)));
-  printf("  dst IP: %s\n", inet_ntoa_r(ip->ip_h.ip_dst, ip_dst, sizeof(ip_dst)));
+  printf("  src IP: %s\n", inet_ntoa_r(ip->ip_h.ip_src, ip_src,
+          sizeof(ip_src)));
+  printf("  dst IP: %s\n", inet_ntoa_r(ip->ip_h.ip_dst, ip_dst,
+          sizeof(ip_dst)));
+}
+
+void ip4_print_line(struct ip4_pkt *ip) {
+  char ip_src[4*4];
+  char ip_dst[4*4];
+
+  printf("IPv4: %s -> %s ",
+          inet_ntoa_r(ip->ip_h.ip_src, ip_src, sizeof(ip_src)),
+          inet_ntoa_r(ip->ip_h.ip_dst, ip_dst, sizeof(ip_dst)));
+  switch (ip->ip_h.ip_p) {
+    case IPPROTO_TCP:
+      printf("TCP ");
+      break;
+    case IPPROTO_UDP:
+      printf("UDP ");
+      break;
+    case IPPROTO_ICMP:
+      printf("ICMP ");
+      break;
+    default:
+      printf("UNK ");
+  }
+  printf("%u/%hu\n", 4*ip->ip_h.ip_hl, ntohs(ip->ip_h.ip_len));
 }
 
 void in_addr_print(struct in_addr *addr) {
