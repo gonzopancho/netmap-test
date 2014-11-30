@@ -21,4 +21,5 @@ void *dispatcher(void *threadarg);
 int dispatcher_init(struct thread_context *context);
 void update_slots_used_single(void *msg_hdr, uint32_t *bitmap,
                               struct netmap_ring *ring);
+void update_slots_used(squeue *q, uint32_t *bitmap, struct netmap_ring *ring);
 #endif
