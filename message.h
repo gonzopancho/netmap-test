@@ -58,8 +58,8 @@ struct msg_arpd_get_mac_reply {
 
 // assumes the squeue is locked
 // returns 1 on success, 0 on fail
-int send_transaction_update_single(struct thread_context *context, 
-                                    uint32_t ring_idx);
-int send_transaction_update(struct thread_context *context, uint32_t *bitmap, 
-                            size_t nbits);
+int send_msg_transaction_update_single(struct thread_context *context,
+                                        uint32_t ring_idx);
+int send_msg_transaction_update(struct thread_context *context,
+                                uint32_t *bitmap, size_t nbits);
 #endif

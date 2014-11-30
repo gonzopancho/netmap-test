@@ -47,15 +47,15 @@ void *arpd(void *threadarg) {
       arp = (struct arp_pkt*) etherpkt->data;
 
       if (!arp_is_valid(arp)) {
-        send_transaction_update_single(&contexts[dispatcher_idx],
-                                        (uint32_t)ring_idx);
+        send_msg_transaction_update_single(&contexts[dispatcher_idx],
+                                            (uint32_t)ring_idx);
         continue;
       }
 
       if (arp->arp_h.ar_op == ARP_OP_REQUEST) {
         if (arp->tpa.s_addr != my_addr->s_addr) {
-          send_transaction_update_single(&contexts[dispatcher_idx],
-                                          (uint32_t) ring_idx);
+          send_msg_transaction_update_single(&contexts[dispatcher_idx],
+                                              (uint32_t) ring_idx);
           continue;
         }
 
@@ -67,8 +67,8 @@ void *arpd(void *threadarg) {
         send_pkt_arp_reply(context->pkt_xmit_q, &arp->spa, &arp->sha);
       } else {  // ARP_OP_REPLY
         if (!arp_reply_filter(arp, my_addr)) {
-          send_transaction_update_single(&contexts[dispatcher_idx],
-                                          (uint32_t) ring_idx);
+          send_msg_transaction_update_single(&contexts[dispatcher_idx],
+                                              (uint32_t) ring_idx);
           continue;
         }
 
@@ -80,8 +80,8 @@ void *arpd(void *threadarg) {
         recv_pkt_arp_reply(arp, data->arp_cache, contexts);
       }
 
-      send_transaction_update_single(&contexts[dispatcher_idx],
-                                      (uint32_t) ring_idx);
+      send_msg_transaction_update_single(&contexts[dispatcher_idx],
+                                          (uint32_t) ring_idx);
     } // while (packets)
 
     // resend outstanding requests and refresh expiring entries
