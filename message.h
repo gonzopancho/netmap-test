@@ -56,10 +56,28 @@ struct msg_arpd_get_mac_reply {
   struct in_addr ip;
 } __attribute__((__packed__));
 
-// assumes the squeue is locked
-// returns 1 on success, 0 on fail
+/*! send a MSG_TRANSACTION_UPDATE_SINGLE message
+
+  handles locking/unlocking the queue
+  blocks when the queue is full
+
+  \param[in] context the context for the message destination
+  \param[in] ring_idx the slot that is no longer in use
+  \return 1 on success (does not fail)
+*/
 int send_msg_transaction_update_single(struct thread_context *context,
                                         uint32_t ring_idx);
+
+/*! send MSG_TRANSACTION_UPDATE and related MSG_TRANSACTION_UPDATE_DATA messages
+
+  handles locking/unlocking the queue
+  blocks on the queue lock
+  \param[in] context the context for the message destination
+  \param[in] bitmap the bitmap of slots that are no longer in use
+  1 indicates a slot that is no longer in use
+  \param[in] nbits the length of the bitmap
+  \return 1 on success, 0 on failure (not enough room in the queue)
+*/
 int send_msg_transaction_update(struct thread_context *context,
                                 uint32_t *bitmap, size_t nbits);
 #endif
