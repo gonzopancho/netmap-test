@@ -1,5 +1,9 @@
 #include "arpd.h"
 
+// private function declarations
+static int timeval_gte(struct timeval *x, struct timeval *y);
+
+// public function definitions
 void *arpd(void *threadarg) {
   assert(threadarg);
 
@@ -14,6 +18,7 @@ void *arpd(void *threadarg) {
   struct netmap_ring *rxring;
   void *ring_idx;
   uint32_t dispatcher_idx;
+  struct msg_hdr *msg_hdr;
 
   context = (struct thread_context *)threadarg;
   contexts = context->shared->contexts;
@@ -55,10 +60,10 @@ void *arpd(void *threadarg) {
         printf("R)");
         arp_print_line(arp);
 
-        // send_arp_reply could fail when xmit queue is full,
+        // send_pkt_arp_reply could fail when xmit queue is full,
         // however, the sender should just resend a request
-        send_arp_reply(context->pkt_xmit_q, &arp->spa, &arp->sha);
-      } else {
+        send_pkt_arp_reply(context->pkt_xmit_q, &arp->spa, &arp->sha);
+      } else {  // ARP_OP_REPLY
         if (!arp_reply_filter(arp, data->addr)) {
           send_transaction_update_single(&context->contexts[dispatcher_idx],
                                           (uint32_t) ring_idx);
@@ -70,17 +75,34 @@ void *arpd(void *threadarg) {
 
         // TODO: also check against a list of my outstanding arp requests
         // prior to insertion in the arp cache
-        //arp_cache_insert(data->arp_cache, &arp->spa, &arp->sha);
-        handle_arp_reply(data->arp_cache, &arp->spa, &arp->sha);
+        recv_pkt_arp_reply(arp, data->arp_cache, contexts);
       }
 
       send_transaction_update_single(&context->contexts[dispatcher_idx],
                                       (uint32_t) ring_idx);
-    }
+    } // while (packets)
+
+    // resend outstanding requests and refresh expiring entries
+    update_arp_cache(data->arp_cache, contexts, context->pkt_xmit_q);
 
     // TODO: read all the messages
+    rv = squeue_enter(context->msg_q, 1);
+    if (!rv)
+      continue;
 
-    sleep(1);
+    while ((msg_hdr = squeue_get_next_pop_slot(context->msg_q)) != NULL) {
+      switch (msg_hdr->msg_type) {
+        case MSG_ARPD_GET_MAC:
+          recv_msg_get_mac((void *)msg_hdr, data->arp_cache,
+                            contexts, context->pkt_xmit_q);
+          break;
+        default:
+          printf("arpd: unknown message %hu\n", msg_hdr->msg_type);
+      }
+    }
+    squeue_exit(context->msg_q);
+
+    usleep(ARP_CACHE_RETRY_INTERVAL);
   } // for (;;)
 
   pthread_exit(NULL);
@@ -135,8 +157,8 @@ int arpd_init(struct thread_context *context) {
 
 // initialize each slot in the xmit queue with ethernet header and
 // arp data that is consistent between requests and replies
-int xmit_queue_init(cqueue_spsc *q,
-                    struct in_addr *my_ip, struct ether_addr *my_mac) {
+int xmit_queue_init(cqueue_spsc *q, struct in_addr *my_ip,
+                    struct ether_addr *my_mac) {
   struct xmit_queue_slot *s;
   struct arp_pkt *arp;
   size_t ether_arp_len, i, start_idx;
@@ -185,7 +207,7 @@ int xmit_queue_init(cqueue_spsc *q,
   return 1;
 }
 
-int send_arp_request(cqueue_spsc *q, struct in_addr *target_ip) {
+int send_pkt_arp_request(cqueue_spsc *q, struct in_addr *target_ip) {
   struct xmit_queue_slot *s;
   struct arp_pkt *request;
 
@@ -209,8 +231,8 @@ int send_arp_request(cqueue_spsc *q, struct in_addr *target_ip) {
   return 1;
 }
 
-int send_arp_reply(cqueue_spsc *q,
-                    struct in_addr *target_ip, struct ether_addr *target_mac) {
+int send_pkt_arp_reply(cqueue_spsc *q, struct in_addr *target_ip,
+                        struct ether_addr *target_mac) {
   struct xmit_queue_slot *s;
   struct arp_pkt *reply;
 
@@ -267,8 +289,7 @@ struct arp_cache_entry *arp_cache_lookup(struct arp_cache *arp_cache,
   return &arp_cache->values[idx];
 }
 
-void arp_cache_insert(struct arp_cache *arp_cache,
-                      struct in_addr *key,
+void arp_cache_insert(struct arp_cache *arp_cache, struct in_addr *key,
                       struct ether_addr *value) {
   uint32_t idx;
 
@@ -283,8 +304,7 @@ void arp_cache_print(struct arp_cache *arp_cache) {
   struct in_addr temp;
 
   for (i=0; i < arp_cache->num_entries; i++) {
-    if (memcmp(&arp_cache->values[i], &ETHER_ADDR_ZERO,
-              sizeof(struct ether_addr)) == 0)
+    if (arp_cache->values[i].timestamp.tv_sec == 0)
       continue;
     temp.s_addr = arp_cache->baseline + htonl(i);
     inet_ntoa_r(temp, ip, sizeof(ip));
@@ -293,43 +313,37 @@ void arp_cache_print(struct arp_cache *arp_cache) {
   }
 }
 
-void handle_arp_reply(struct arp_cache *arp_cache,
-                      struct in_addr *key,
-                      struct ether_addr *value) {
+void recv_pkt_arp_reply(struct arp_pkt *arp, struct arp_cache *arp_cache,
+                        struct thread_context *contexts) {
   uint32_t idx, i;
   struct arp_cache_entry *e;
   int rv;
 
-  idx = ntohl(key->s_addr - arp_cache->baseline);
+  assert(arp_cache);
+  assert(contexts);
+  assert(arp);
+
+  idx = ntohl(arp->spa.s_addr - arp_cache->baseline);
   e = &arp_cache->values[idx];
 
-  memcpy(&e->mac, value, sizeof(struct ether_addr));
+  // update the arp cache
+  memcpy(&e->mac, &arp->sha, sizeof(arp->sha));
   e->retries = 0;
   rv = gettimeofday(&e->timestamp, NULL);
   assert(rv == 0);
+  e->timestamp.tv_sec += ARP_CACHE_LIFETIME;
 
+  // and notify threads that are waiting for this arp entry
   for (i=0; i < MAX_THREADS; i++) {
     if (bitmap_get(e->waiters, i))
-      notify_waiter(i, key, value);
+      send_msg_get_mac_reply(&contexts[i], &arp->spa, &arp->sha);
   }
   bitmap_clearall(e->waiters, MAX_THREADS);
 }
 
-void notify_waiter(uint32_t thread_id, struct in_addr *key, 
-                    struct ether_addr *value) {
-  // TODO: everything
-  // NOTE: use args to shut up the compiler
-  if (thread_id)
-    thread_id = 0;
-  if (key)
-    key = NULL;
-  if (value)
-    value = NULL;
-
-}
-
-void update_arp_cache(struct arp_cache *arp_cache) {
-  uint32_t i;
+void update_arp_cache(struct arp_cache *arp_cache,
+                      struct thread_context *contexts, cqueue_spsc *q) {
+  uint32_t i, j;
   struct arp_cache_entry *e;
   struct timeval t;
   struct in_addr ip;
@@ -341,31 +355,102 @@ void update_arp_cache(struct arp_cache *arp_cache) {
   for (i=0; i < arp_cache->num_entries; i++) {
     e = &arp_cache->values[i];
 
+    // skip uninitialized entries
     if (e->timestamp.tv_sec == 0)
       continue;
 
+    // failed to get a response, so notify waiters
     if (e->retries == ARP_CACHE_RETRY_LIMIT) {
-      // TODO: send notification to waiters
-      // TODO: reset arp cache entry
+      ip.s_addr = arp_cache->baseline + htonl(i);
+      for (j=0; j < MAX_THREADS; j++) {
+        if (bitmap_get(e->waiters, j))
+          send_msg_get_mac_reply(&contexts[j], &ip, &ETHER_ADDR_ZERO);
+      }
+
+      memset(e, 0, sizeof(*e));
       continue;
     }
 
-    if (delta_t_exceeds(&t, &e->timestamp, ARP_CACHE_LIFETIME)) {
+    // time's up, resend the request
+    if (timeval_gte(&t, &e->timestamp)) {
       ip.s_addr = arp_cache->baseline + htonl(i);
-      //send_arp_request(&ip);
+      rv = send_pkt_arp_request(q, &ip);
+      if (!rv)
+        continue;
+
       e->retries++;
+      e->timestamp.tv_sec = t.tv_sec;
+      e->timestamp.tv_usec = t.tv_usec + ARP_CACHE_RETRY_INTERVAL;
+      if (e->timestamp.tv_usec > 999999) {
+        e->timestamp.tv_sec++;
+        e->timestamp.tv_usec-=1000000;
+      }
     }
+  } // for (arp cache entries)
+}
+
+void send_msg_get_mac_reply(struct thread_context *context, struct in_addr *ip,
+                            struct ether_addr *mac) {
+  assert(context);
+  assert(context->msg_q);
+
+  struct msg_arpd_get_mac_reply *msg;
+  msg = squeue_push_slot(context->msg_q);
+  msg->header.msg_type = MSG_ARPD_GET_MAC_REPLY;
+  msg->header.msg_group = MSG_GROUP_ARPD;
+  msg->header.num_blocks = 1;
+  memcpy(&msg->mac, mac, sizeof(*mac));
+  memcpy(&msg->ip, ip, sizeof(*ip));
+  squeue_exit(context->msg_q);
+}
+
+void recv_msg_get_mac(void *msg_hdr, struct arp_cache *arp_cache,
+                      struct thread_context *contexts, cqueue_spsc *q) {
+  struct msg_arpd_get_mac *msg;
+  struct arp_cache_entry *e;
+  uint32_t idx;
+  int rv;
+
+  assert(msg_hdr);
+  assert(arp_cache);
+  assert(contexts);
+  assert(q);
+
+  msg = msg_hdr;
+  idx = ntohl(msg->ip.s_addr - arp_cache->baseline);
+  e = &arp_cache->values[idx];
+
+  if (e->timestamp.tv_sec != 0) {
+    send_msg_get_mac_reply(&contexts[msg->thread_id], &msg->ip, &e->mac);
+  } else { // uninitialized, so send a request
+    // send_pkt_arp_request might fail, but it will get resent when
+    // the arp cache is updated
+    send_pkt_arp_request(q, &msg->ip);
+    bitmap_set(e->waiters, msg->thread_id);
+    rv = gettimeofday(&e->timestamp, NULL);
+    assert(rv == 0);
+    e->timestamp.tv_usec+= ARP_CACHE_RETRY_INTERVAL;
+    if (e->timestamp.tv_usec > 999999) {
+      e->timestamp.tv_sec++;
+      e->timestamp.tv_usec-=1000000;
+    }
+    return;
   }
 }
 
-int delta_t_exceeds(struct timeval *s, struct timeval *e, uint64_t limit) {
-  // TODO: everything
-  // NOTE: use args to shut up the compiler
-  if (s)
-    s = NULL;
-  if (e)
-    e = NULL;
-  if (limit)
-    limit = 0;
+
+// private function definitions
+
+// returns 1 if x >= y, 0 otherwise
+int timeval_gte(struct timeval *x, struct timeval *y) {
+  if (x->tv_sec > y->tv_sec)
+    return 1;
+
+  if (x->tv_sec < y->tv_sec)
+    return 0;
+
+  if (x->tv_usec < y->tv_usec)
+    return 0;
+
   return 1;
 }

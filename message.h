@@ -10,13 +10,16 @@
 #define MSG_BLOCKSIZE 16
 
 enum msg_group {
-  MSG_GROUP_GENERAL
+  MSG_GROUP_GENERAL,
+  MSG_GROUP_ARPD
 };
 
 enum msg_type {
   MSG_TRANSACTION_UPDATE_SINGLE,
   MSG_TRANSACTION_UPDATE,
-  MSG_TRANSACTION_UPDATE_DATA
+  MSG_TRANSACTION_UPDATE_DATA,
+  MSG_ARPD_GET_MAC,
+  MSG_ARPD_GET_MAC_REPLY
 };
 
 struct msg_hdr {
@@ -40,6 +43,18 @@ struct msg_transaction_update_data {
   uint32_t data[4];
 };
 
+struct msg_arpd_get_mac {
+  struct msg_hdr header;
+  uint16_t pad[1];
+  struct in_addr ip;
+  uint32_t thread_id;
+} __attribute__((__packed__));
+
+struct msg_arpd_get_mac_reply {
+  struct msg_hdr header;
+  struct ether_addr mac;
+  struct in_addr ip;
+} __attribute__((__packed__));
 
 // assumes the squeue is locked
 // returns 1 on success, 0 on fail
