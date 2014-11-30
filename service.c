@@ -88,8 +88,6 @@ int main() {
 
   /* generic context initialization */
   for (i=0; i < NUM_THREADS; i++) {
-    contexts[i].num_threads = NUM_THREADS;
-    contexts[i].contexts = contexts;
     contexts[i].shared = &shared;
     contexts[i].pkt_xmit_q = NULL;
     contexts[i].pkt_recv_q = NULL;
@@ -138,8 +136,6 @@ int main() {
                                 sizeof(struct arp_pkt);
   arpd_data.recv_q_transactions = 64;
   arpd_data.recv_q_actions_per_transaction = 1;
-  arpd_data.mac = &ifi.mac;
-  arpd_data.addr = &ineti.addr;
   arpd_data.rxring = rxring;
 
   printf("main(): creating arpd\n");
@@ -186,7 +182,6 @@ int main() {
   dispatcher_data.msg_q_elem_size = MSG_BLOCKSIZE;
   dispatcher_data.fd = fd;
   dispatcher_data.nifp = nifp;
-  dispatcher_data.ifi = &ifi;
 
   printf("main(): creating dispatcher thread\n");
   retval = pthread_create(&contexts[i].thread, NULL, contexts[i].threadfunc,

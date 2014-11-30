@@ -10,6 +10,7 @@ void *arpd(void *threadarg) {
   struct thread_context *context;
   struct thread_context *contexts;
   struct arpd_data *data;
+  struct in_addr *my_addr;
   int rv;
 
   struct transaction *transaction = NULL;
@@ -25,6 +26,7 @@ void *arpd(void *threadarg) {
   data = context->data;
   rxring = data->rxring;
   dispatcher_idx = context->shared->dispatcher_idx;
+  my_addr = &context->shared->inet_info->addr;
 
   rv = arpd_init(context);
   if (!rv) {
@@ -45,14 +47,14 @@ void *arpd(void *threadarg) {
       arp = (struct arp_pkt*) etherpkt->data;
 
       if (!arp_is_valid(arp)) {
-        send_transaction_update_single(&context->contexts[dispatcher_idx], 
-                                        (uint32_t) ring_idx);
+        send_transaction_update_single(&contexts[dispatcher_idx],
+                                        (uint32_t)ring_idx);
         continue;
       }
 
       if (arp->arp_h.ar_op == ARP_OP_REQUEST) {
-        if (arp->tpa.s_addr != data->addr->s_addr) {
-          send_transaction_update_single(&context->contexts[dispatcher_idx],
+        if (arp->tpa.s_addr != my_addr->s_addr) {
+          send_transaction_update_single(&contexts[dispatcher_idx],
                                           (uint32_t) ring_idx);
           continue;
         }
@@ -64,8 +66,8 @@ void *arpd(void *threadarg) {
         // however, the sender should just resend a request
         send_pkt_arp_reply(context->pkt_xmit_q, &arp->spa, &arp->sha);
       } else {  // ARP_OP_REPLY
-        if (!arp_reply_filter(arp, data->addr)) {
-          send_transaction_update_single(&context->contexts[dispatcher_idx],
+        if (!arp_reply_filter(arp, my_addr)) {
+          send_transaction_update_single(&contexts[dispatcher_idx],
                                           (uint32_t) ring_idx);
           continue;
         }
@@ -78,7 +80,7 @@ void *arpd(void *threadarg) {
         recv_pkt_arp_reply(arp, data->arp_cache, contexts);
       }
 
-      send_transaction_update_single(&context->contexts[dispatcher_idx],
+      send_transaction_update_single(&contexts[dispatcher_idx],
                                       (uint32_t) ring_idx);
     } // while (packets)
 
@@ -130,7 +132,8 @@ int arpd_init(struct thread_context *context) {
     return 0;
   }
 
-  rv = xmit_queue_init(context->pkt_xmit_q, data->addr, data->mac);
+  rv = xmit_queue_init(context->pkt_xmit_q, &context->shared->inet_info->addr,
+                        &context->shared->if_info->mac);
   if (!rv) {
     squeue_delete(&context->msg_q);
     return 0;

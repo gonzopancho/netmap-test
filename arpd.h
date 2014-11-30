@@ -28,8 +28,6 @@ struct arpd_data {
   int xmit_q_elem_size;
   int recv_q_transactions;
   int recv_q_actions_per_transaction;
-  struct ether_addr *mac;
-  struct in_addr *addr;
   struct netmap_ring *rxring;
   struct arp_cache *arp_cache;
 };

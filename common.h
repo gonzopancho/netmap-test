@@ -59,8 +59,6 @@ struct thread_context {
   pthread_t thread;
   int thread_id;
   int thread_type;
-  uint32_t num_threads;
-  struct thread_context *contexts;
   struct shared_context *shared;
   cqueue_spsc *pkt_xmit_q;
   tqueue *pkt_recv_q;
