@@ -105,6 +105,7 @@ int main() {
     worker_data[i].xmit_q_elem_size = sizeof(struct xmit_queue_slot) + MTU;
     worker_data[i].recv_q_transactions = 32;
     worker_data[i].recv_q_actions_per_transaction = 32;
+    worker_data[i].rxring = rxring;
     printf("main(): creating worker %d\n", i);
     retval = pthread_create(&contexts[i].thread, NULL, worker,
                             (void *) &contexts[i]);
